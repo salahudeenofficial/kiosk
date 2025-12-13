@@ -1,0 +1,67 @@
+Request Format
+Headers
+http
+Authorization: Bearer <JWT_TOKEN>
+Content-Type: multipart/form-data
+Request Body (multipart/form-data)
+image: <File>
+Field Details:
+
+image
+ (required): The image file to upload
+    Accepted formats: JPEG, JPG, PNG, WebP
+    Recommended: Original user photo (any resolution)
+
+Response Format
+Success Response (200 OK)
+json
+{
+  "success": true,
+  "data": {
+    "imageUrl": "https://s3.amazonaws.com/xapienprodsecure/user_image/123/req-123-a7f3b2c1/image.png?X-Amz-Algorithm=...",
+    "imageId": "image.png"
+  },
+  "error": null
+}
+Response Fields:
+
+success: Boolean indicating operation success
+data.imageUrl: Presigned URL (valid for 7 days) - use this to display the uploaded image
+data.imageId: Filename of the uploaded image
+error: null on success
+Error Responses
+Invalid File Type (200 OK with success=false)
+json
+{
+  "success": false,
+  "data": {},
+  "error": {
+    "message": "Invalid file type. Only JPEG, PNG, and WebP are allowed",
+    "code": "INVALID_FILE_TYPE"
+  }
+}
+Image Preprocessing Error (200 OK with success=false)
+json
+{
+  "success": false,
+  "data": {},
+  "error": {
+    "message": "Failed to preprocess image: <error details>",
+    "code": "IMAGE_PREPROCESSING_ERROR"
+  }
+}
+Upload Error (200 OK with success=false)
+json
+{
+  "success": false,
+  "data": {},
+  "error": {
+    "message": "<error details>",
+    "code": "UPLOAD_ERROR"
+  }
+}
+Authentication Error (401 Unauthorized)
+json
+{
+  "detail": "Invalid or expired token"
+}
