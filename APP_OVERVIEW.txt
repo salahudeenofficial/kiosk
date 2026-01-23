@@ -1,0 +1,67 @@
+KIOSK APP OVERVIEW
+==================
+
+A React/Vite kiosk application for virtual try-on (VTON) experiences.
+
+TECH STACK
+----------
+- Frontend: React + TypeScript + Vite
+- State: Zustand (kioskStore.ts)
+- Routing: React Router
+- Styling: TailwindCSS + CSS
+
+PAGES (User Flow)
+-----------------
+1. NewIdleScreen     - Landing/start screen
+2. UserDetailsScreen - Collect gender, height
+3. CaptureScreen     - Camera to take user photo
+4. ValidationScreen  - Validate captured image
+5. ProductList       - Browse available garments
+6. ProductDetail     - View product details + size selection
+7. FitCheckScreen    - Body measurements display
+8. TryOnScreen       - Processing VTON jobs
+9. TryOnResultsScreen- Display try-on results
+10. ReviewScreen     - Review selected items
+11. PurchaseScreen   - Purchase flow
+12. SessionEnd       - Session complete screen
+
+BACKEND COMMUNICATION
+---------------------
+All API calls via: src/utils/api.ts
+Base URL: Relative (uses Vite proxy)
+Auth: Bearer token from signup
+
+API ENDPOINTS:
+- POST /api/auth/signup           - Create kiosk user session
+- POST /api/users/details         - Update gender/height
+- POST /api/validate-image        - Validate user photo
+- POST /api/users/image/kiosk     - Upload user image (multipart)
+- GET  /api/products              - Fetch product catalog
+- POST /api/vton/manual           - Create VTON job (headers: X-User-ID, X-Garment-ID)
+- GET  /api/vton/result/image     - Poll for VTON result image
+- GET  /api/users/measurements    - Get body measurements
+
+STATE MANAGEMENT (kioskStore)
+-----------------------------
+Tracks: userImage, userToken, userId, gender, height, products,
+        selectedProducts (max 3), vtonResults, cart, measurements, selectedSize
+
+DEPLOYMENT
+----------
+- Nginx config in /deployment/
+- Deploy script: deploy.sh
+
+COMPLETE USER FLOW
+------------------
+1. PAGE LOAD → Idle Screen (tap to start)
+2. User enters gender + height → POST /api/auth/signup (get token)
+3. Camera capture → Take photo → POST /api/validate-image
+4. If valid → POST /api/users/image/kiosk (upload photo)
+5. Browse products → GET /api/products → Select up to 3 items
+6. View product detail → Select size → Add to try-on queue
+7. Fit Check (optional) → Poll GET /api/users/measurements
+8. Start Try-On → For each garment: POST /api/vton/manual
+9. Poll results → GET /api/vton/result/image (until ready)
+10. Display results → User reviews try-on images
+11. Add to cart / Purchase flow
+12. Session End → resetAll() clears store → Back to Idle Screen

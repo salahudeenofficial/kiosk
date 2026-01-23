@@ -10,6 +10,8 @@ import FiltersDrawer, { type Filters } from '../components/FiltersDrawer'
 import useAutoNavigate from '../hooks/useAutoNavigate'
 import { useKioskStore } from '../store/kioskStore'
 import { productApi, type ProductListItem } from '../utils/productApi'
+import { unifiedKioskApi } from '../utils/unifiedKioskApi'
+import { MOCK_CONFIG } from '../utils/mockKioskApi'
 
 // Skeleton Card Component - Responsive fixed height matching ProductCard
 const SkeletonCard = () => (
@@ -57,6 +59,26 @@ const ProductList = () => {
   })
   const [filtersDrawerOpen, setFiltersDrawerOpen] = useState(false)
 
+  // Infinite scroll & Scroll persistence
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const observerTarget = useRef<HTMLDivElement>(null)
+  const productListScrollPosition = useKioskStore((state) => state.productListScrollPosition)
+  const setProductListScrollPosition = useKioskStore((state) => state.setProductListScrollPosition)
+
+  // Restore scroll position on mount
+  useEffect(() => {
+    if (scrollContainerRef.current && productListScrollPosition > 0) {
+      // Small timeout to ensure content renders
+      setTimeout(() => {
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTop = productListScrollPosition
+        }
+      }, 100)
+    }
+  }, []) // Run once on mount
+
+
+
   const limit = 20
   const loadingRef = useRef(false) // Prevent double-fetch
 
@@ -91,8 +113,40 @@ const ProductList = () => {
     }
 
     try {
-      const response = await productApi.getProductsList(params)
-      const newProducts = filterBlocked(response.products)
+      let newProducts: ProductListItem[]
+
+      // Use unified API for mock mode, productApi for real backend
+      if (MOCK_CONFIG.ENABLED) {
+        const catalogResponse = await unifiedKioskApi.loadCatalog({
+          limit,
+          offset,
+          gender: genderFilter,
+          categoryId: filters.category_id,
+          search: search || undefined,
+          min_price: filters.min_price,
+          max_price: filters.max_price,
+          sort_by: sortOption.sort_by,
+          sort_order: sortOption.sort_order,
+        })
+        // Convert catalog products to ProductListItem format
+        // Cast to any to add missing fields with defaults
+        newProducts = catalogResponse.products.map(p => ({
+          productId: p.productId,
+          name: p.name,
+          mrp: p.mrp,
+          baseColour: 'Black', // Default color for mock
+          ratings: 4.0, // Default rating for mock
+          imageCount: 1, // Default image count for mock
+          imageUrl: p.imageUrl,
+          brand: p.brand,
+          category: p.category,
+        } as ProductListItem))
+      } else {
+        const response = await productApi.getProductsList(params)
+        newProducts = response.products
+      }
+
+      newProducts = filterBlocked(newProducts)
 
       // Auto-stop when returned less than limit
       if (newProducts.length < limit) {
@@ -137,6 +191,24 @@ const ProductList = () => {
     }
   }, [loading, hasMore])
 
+  // Infinite Scroll Observer
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loading && !loadingRef.current) {
+          handleLoadMore()
+        }
+      },
+      { threshold: 0.1, rootMargin: '100px' }
+    )
+
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current)
+    }
+
+    return () => observer.disconnect()
+  }, [hasMore, loading, handleLoadMore])
+
   // Reset and load first page when filters/search/sort change
   useEffect(() => {
     setProducts([])
@@ -170,8 +242,39 @@ const ProductList = () => {
       }
 
       try {
-        const response = await productApi.getProductsList(params)
-        const newProducts = filterBlocked(response.products)
+        let newProducts: ProductListItem[]
+
+        // Use unified API for mock mode, productApi for real backend
+        if (MOCK_CONFIG.ENABLED) {
+          const catalogResponse = await unifiedKioskApi.loadCatalog({
+            limit,
+            offset: 0,
+            gender: genderFilter,
+            categoryId: filters.category_id,
+            search: search || undefined,
+            min_price: filters.min_price,
+            max_price: filters.max_price,
+            sort_by: sortOption.sort_by,
+            sort_order: sortOption.sort_order,
+          })
+          // Convert catalog products to ProductListItem format
+          newProducts = catalogResponse.products.map(p => ({
+            productId: p.productId,
+            name: p.name,
+            mrp: p.mrp,
+            baseColour: 'Black',
+            ratings: 4.0,
+            imageCount: 1,
+            imageUrl: p.imageUrl,
+            brand: p.brand,
+            category: p.category,
+          } as ProductListItem))
+        } else {
+          const response = await productApi.getProductsList(params)
+          newProducts = response.products
+        }
+
+        newProducts = filterBlocked(newProducts)
 
         if (newProducts.length < limit) {
           setHasMore(false)
@@ -244,6 +347,9 @@ const ProductList = () => {
   }
 
   const handleCardClick = (product: ProductListItem) => {
+    if (scrollContainerRef.current) {
+      setProductListScrollPosition(scrollContainerRef.current.scrollTop)
+    }
     navigate(`/product/${product.productId}`)
   }
 
@@ -255,8 +361,8 @@ const ProductList = () => {
 
   return (
     <div className="fixed inset-0 bg-white text-slate-900 overflow-hidden z-50 min-h-screen w-full flex flex-col">
-      <div className="flex-1 overflow-y-auto">
-        <div className="flex flex-col gap-[3%] p-[4%] max-w-[1920px] mx-auto min-h-full pb-[120px]">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
+        <div className="flex flex-col gap-[3%] px-[4%] pt-[80px] pb-[120px] max-w-[1920px] mx-auto min-h-full">
           {/* Header */}
           <div className="flex flex-col gap-[3%]">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-[2%]">
@@ -402,6 +508,13 @@ const ProductList = () => {
                 </AnimatePresence>
               </div>
 
+              {/* Infinite Scroll Trigger */}
+              {hasMore && (
+                <div ref={observerTarget} className="w-full py-8 flex justify-center">
+                  {loading && <LoadingPulse className="text-slate-400" lines={3} />}
+                </div>
+              )}
+
 
               {/* End of List */}
               {!hasMore && products.length > 0 && (
@@ -478,40 +591,7 @@ const ProductList = () => {
         </motion.div>
       </AnimatePresence>
 
-      {/* Load More Button - Fixed at bottom */}
-      {hasMore && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-lg z-50 p-[2%] sm:p-[3%]">
-          <motion.div
-            className="flex items-center justify-center max-w-[1920px] mx-auto"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3 }}
-          >
-            <motion.button
-              onClick={handleLoadMore}
-              disabled={loading}
-              whileHover={{ scale: loading ? 1 : 1.03 }}
-              whileTap={{ scale: loading ? 1 : 0.98 }}
-              className={`
-                w-full max-w-[60%] h-[70px] sm:h-[80px] md:h-[90px]
-                rounded-2xl font-bold text-white text-2xl sm:text-3xl
-                transition-all duration-200 shadow-lg
-                flex items-center justify-center gap-4
-                ${loading
-                  ? 'bg-slate-400 cursor-not-allowed'
-                  : 'bg-slate-800 hover:bg-slate-900 active:bg-slate-950'
-                }
-              `}
-            >
-              {loading ? (
-                <LoadingPulse className="text-white w-full max-w-[200px]" lines={4} />
-              ) : (
-                'LOAD MORE PRODUCTS'
-              )}
-            </motion.button>
-          </motion.div>
-        </div>
-      )}
+
 
       {/* Filters Drawer */}
       <FiltersDrawer

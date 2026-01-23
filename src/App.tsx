@@ -4,25 +4,68 @@ import MotionFade from './components/UI/MotionFade'
 import { useKioskStore } from './store/kioskStore'
 import useSessionTimeout from './hooks/useSessionTimeout'
 import SessionTimeoutBar from './components/UI/SessionTimeoutBar'
+import DebugPanel from './components/Debug/DebugPanel'
+import { unifiedKioskApi } from './utils/unifiedKioskApi'
 
 const AppLayout = () => {
   const navigate = useNavigate()
   const location = useLocation()
   const userGender = useKioskStore((state) => state.userGender)
-  const resetAll = useKioskStore((state) => state.resetAll)
+  const sessionId = useKioskStore((state) => state.sessionId)
+  const setIsConfigured = useKioskStore((state) => state.setIsConfigured)
 
   // Initialize session timeout logic
   const { remaining, resetTimer, isWarning } = useSessionTimeout()
 
-  // On page load/reload, if no gender is set, ensure we're on user-details screen
+  // Check if kiosk is configured on mount
   useEffect(() => {
-    // Only check on initial mount - if no gender and not on initial screens, reset
-    if (!userGender && location.pathname !== '/' && location.pathname !== '/user-details') {
-      resetAll() // Reset store to ensure clean state
+    // Check for reset param
+    const params = new URLSearchParams(location.search)
+    if (params.get('reset') === 'true') {
+      console.log('Resetting kiosk configuration...')
+      localStorage.clear()
+      sessionStorage.clear()
+      // Use window.location to force full reload and clear memory state
+      window.location.replace('/')
+      return
+    }
+
+    const config = unifiedKioskApi.getConfig()
+    if (config) {
+      setIsConfigured(true)
+    }
+  }, [setIsConfigured, location.search])
+
+  // Route protection: redirect to appropriate pages based on session state
+  useEffect(() => {
+    const currentPath = location.pathname
+
+    // Pages that don't need a session
+    const publicPages = ['/', '/config']
+    if (publicPages.includes(currentPath)) {
+      return
+    }
+
+    // Allow fit-check in mock mode without session (for testing)
+    if (currentPath === '/fit-check' && unifiedKioskApi.isMockMode()) {
+      return
+    }
+
+    // Check for active session
+    const session = unifiedKioskApi.getSession()
+    if (!session && !sessionId) {
+      console.log('[App] No session for protected route, redirecting to home')
+      navigate('/', { replace: true })
+      return
+    }
+
+    // Check if gender is set for flow pages
+    const flowPages = ['/capture', '/validate', '/products', '/product', '/tryon', '/tryon-results', '/review', '/purchase']
+    if (!userGender && flowPages.some(path => currentPath.startsWith(path))) {
+      console.log('[App] No gender set for flow page, redirecting to user-details')
       navigate('/user-details', { replace: true })
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // Only run on mount
+  }, [location.pathname, sessionId, userGender, navigate])
 
   return (
     <div className="min-h-screen w-full bg-kiosk-gradient text-slate-50 relative">
@@ -37,8 +80,12 @@ const AppLayout = () => {
           isVisible={isWarning && location.pathname === '/tryon-results'}
         />
       </div>
+
+      {/* Debug Panel - only visible in development */}
+      <DebugPanel />
     </div>
   )
 }
 
 export default AppLayout
+

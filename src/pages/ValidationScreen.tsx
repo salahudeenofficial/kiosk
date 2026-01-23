@@ -4,23 +4,32 @@ import MotionFade from '../components/UI/MotionFade'
 import LoadingPulse from '../components/UI/LoadingPulse'
 import useAutoNavigate from '../hooks/useAutoNavigate'
 import { useKioskStore } from '../store/kioskStore'
-import { api } from '../utils/api'
+import { unifiedKioskApi } from '../utils/unifiedKioskApi'
+import { MOCK_CONFIG } from '../utils/mockKioskApi'
 import Button from '../components/UI/Button'
 
 const ValidationScreen = () => {
   useAutoNavigate()
   const navigate = useNavigate()
   const userImage = useKioskStore((state) => state.userImage)
-  const userToken = useKioskStore((state) => state.userToken)
+  const sessionId = useKioskStore((state) => state.sessionId)
   const setValidated = useKioskStore((state) => state.setValidated)
   const setUserImageUrl = useKioskStore((state) => state.setUserImageUrl)
+  const setUserMeasurements = useKioskStore((state) => state.setUserMeasurements)
 
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const handleContinue = async () => {
-    if (!userImage || !userToken) {
-      setError('Missing image or session. Please restart.')
+    if (!userImage) {
+      setError('Missing image. Please take a photo first.')
+      return
+    }
+
+    // Check for active session
+    if (!sessionId && !unifiedKioskApi.getSession()) {
+      setError('Session expired. Please restart.')
+      setTimeout(() => navigate('/'), 2000)
       return
     }
 
@@ -28,12 +37,24 @@ const ValidationScreen = () => {
     setError(null)
 
     try {
-      // Upload image to backend
-      const result = await api.uploadUserImage(userToken, userImage)
+      // Upload image using the new session-based API
+      const result = await unifiedKioskApi.uploadImageFromDataUrl(userImage)
 
       // Save the backend URL to store
-      setUserImageUrl(result.imageUrl)
+      setUserImageUrl(result.image_url)
       setValidated(true)
+
+      // In mock mode, fetch measurements after upload
+      if (MOCK_CONFIG.ENABLED || unifiedKioskApi.isMockMode()) {
+        try {
+          const measurementsResult = await unifiedKioskApi.getUserMeasurements()
+          if (measurementsResult.status === 'success' && measurementsResult.measurements) {
+            setUserMeasurements(measurementsResult.measurements)
+          }
+        } catch (err) {
+          console.warn('Failed to fetch measurements:', err)
+        }
+      }
 
       // Navigate to products
       navigate('/products')
@@ -106,3 +127,4 @@ const ValidationScreen = () => {
 }
 
 export default ValidationScreen
+

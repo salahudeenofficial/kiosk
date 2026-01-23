@@ -5,241 +5,226 @@ import { Navigation, Pagination } from 'swiper/modules'
 import MotionFade from '../components/UI/MotionFade'
 import LoadingPulse from '../components/UI/LoadingPulse'
 import { useKioskStore } from '../store/kioskStore'
-import { api } from '../utils/api'
+import { unifiedKioskApi, type VtonResultEvent, type VtonErrorEvent } from '../utils/unifiedKioskApi'
 import useAutoNavigate from '../hooks/useAutoNavigate'
 
 type VtonJob = {
   garment_id: string
   productName: string
   imageUrl: string | null
+  status: string
+  error?: string
+  responseTime?: number
 }
-
-const POLL_INTERVAL_MS = 1000
 
 const TryOnResultsScreen = () => {
   useAutoNavigate()
   const navigate = useNavigate()
   const selectedProducts = useKioskStore((state) => state.selectedProducts)
-  const userToken = useKioskStore((state) => state.userToken)
-  const userId = useKioskStore((state) => state.userId)
   const setVtonResults = useKioskStore((state) => state.setVtonResults)
-  const resetAll = useKioskStore((state) => state.resetAll)
+  const resetSession = useKioskStore((state) => state.resetSession)
 
   const [jobs, setJobs] = useState<VtonJob[]>([])
   const [error, setError] = useState<string | null>(null)
-  const [isCreatingJobs, setIsCreatingJobs] = useState(true)
+  const [isRequestingVton, setIsRequestingVton] = useState(true)
 
-  // Use a session ID to track the current polling session
-  // When cleanup happens, we increment the session ID so old polls stop
-  const sessionIdRef = useRef(0)
-  const pollTimeoutRef = useRef<number | null>(null)
-  const hasInitiatedRef = useRef(false) // Prevent StrictMode double-mount
+  // Refs for cleanup
+  const eventSourceRef = useRef<EventSource | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
+  const hasInitiatedRef = useRef(false)
 
-  // Main effect
+  // Main effect for VTON
   useEffect(() => {
-    // Prevent StrictMode double-mount from creating duplicate jobs
+    // Prevent StrictMode double-mount
     if (hasInitiatedRef.current) {
-      console.log('[INIT] Already initiated, skipping duplicate mount')
+      console.log('[VTON] Already initiated, skipping duplicate mount')
       return
     }
     hasInitiatedRef.current = true
 
-    // Increment session ID to invalidate any previous polling sessions
-    const currentSessionId = ++sessionIdRef.current
-    console.log(`[Session ${currentSessionId}] Starting new session`)
-
-    // Clear any pending timeouts from previous session
-    if (pollTimeoutRef.current) {
-      clearTimeout(pollTimeoutRef.current)
-      pollTimeoutRef.current = null
-    }
-
-    // Reset state
-    setJobs([])
-    setError(null)
-    setIsCreatingJobs(true)
-    setVtonResults([]) // Clear old results from store
-
-    if (!userToken || !userId || selectedProducts.length === 0) {
-      console.log(`[Session ${currentSessionId}] Missing data, redirecting`)
+    if (selectedProducts.length === 0) {
+      console.log('[VTON] No products selected, redirecting')
       navigate('/products')
       return
     }
 
-    // Track completed jobs for this session
-    const completedJobIds = new Set<string>()
-    let totalJobsCreated = 0
+    // Check for active session
+    const session = unifiedKioskApi.getSession()
+    if (!session) {
+      console.log('[VTON] No active session, redirecting')
+      navigate('/')
+      return
+    }
 
-    // Polling function
-    const pollOnce = async (jobsList: VtonJob[], pollIndex: number) => {
-      // Check if this polling session is still valid
-      if (sessionIdRef.current !== currentSessionId) {
-        console.log(`[Session ${currentSessionId}] Session invalidated, stopping poll`)
-        return
-      }
+    // Initialize jobs from selected products
+    const initialJobs: VtonJob[] = selectedProducts.slice(0, 3).map((product) => ({
+      garment_id: String(product.id),
+      productName: product.title || 'Product',
+      imageUrl: null,
+      status: 'PENDING',
+    }))
+    setJobs(initialJobs)
 
-      // Check if still on the results page
-      if (window.location.pathname !== '/tryon-results') {
-        console.log(`[Session ${currentSessionId}] User left page, stopping poll`)
-        return
-      }
-
-      const pendingJobs = jobsList.filter(j => j.imageUrl === null)
-      const pendingIds = pendingJobs.map(j => j.garment_id).join(', ')
-      const completedIds = Array.from(completedJobIds).join(', ')
-      console.log(`[POLL] Session ${currentSessionId} | Pending garments: [${pendingIds}] | Completed: [${completedIds}] (${completedJobIds.size}/${totalJobsCreated})`)
-
-      // Check if all jobs are done
-      if (completedJobIds.size >= totalJobsCreated && totalJobsCreated > 0) {
-        console.log(`[Session ${currentSessionId}] 🎉 All ${totalJobsCreated} jobs complete!`)
-        return
-      }
-
-      if (pendingJobs.length === 0) {
-        // All jobs in list have images but completedJobIds count doesn't match
-        // This shouldn't happen, but poll again just in case
-        console.log(`[Session ${currentSessionId}] No pending jobs but count mismatch, polling again...`)
-        pollTimeoutRef.current = window.setTimeout(() => pollOnce(jobsList, pollIndex), POLL_INTERVAL_MS)
-        return
-      }
-
-      // Round-robin through pending jobs
-      const jobToPoll = pendingJobs[pollIndex % pendingJobs.length]
-      const nextPollIndex = pollIndex + 1
-
-      console.log(`[POLL] Session ${currentSessionId} | >>> Fetching result for GARMENT ID: ${jobToPoll.garment_id} <<<`)
-
+    const startVton = async () => {
       try {
-        const imageUrl = await api.getVtonResultImage(userToken, userId, jobToPoll.garment_id)
+        // Request VTON for all selected garments
+        const garmentIds = selectedProducts.slice(0, 3).map((p) => Number(p.id))
+        console.log('[VTON] Requesting VTON for garments:', garmentIds)
 
-        // Re-check if session is still valid after async call
-        if (sessionIdRef.current !== currentSessionId) {
-          console.log(`[Session ${currentSessionId}] Session invalidated after API call`)
-          return
-        }
+        const startTime = Date.now()
+        const response = await unifiedKioskApi.requestVton(garmentIds)
+        console.log('[VTON] VTON request successful:', response.jobs)
 
-        if (imageUrl) {
-          console.log(`[POLL] Session ${currentSessionId} | ✓ GOT IMAGE for GARMENT ID: ${jobToPoll.garment_id}`)
-          completedJobIds.add(jobToPoll.garment_id)
+        // Update job statuses from response
+        setJobs((prev) =>
+          prev.map((job) => {
+            const responseJob = response.jobs.find((j) => String(j.garment_id) === job.garment_id)
+            if (responseJob) {
+              return { ...job, status: responseJob.status }
+            }
+            return job
+          })
+        )
 
-          // Update jobs list
-          const updatedJobs = jobsList.map(j =>
-            j.garment_id === jobToPoll.garment_id ? { ...j, imageUrl } : j
-          )
-          setJobs(updatedJobs)
-          setVtonResults(updatedJobs.filter(j => j.imageUrl).map(j => j.imageUrl!))
+        setIsRequestingVton(false)
 
-          // Check if all done now
-          if (completedJobIds.size >= totalJobsCreated) {
-            console.log(`[Session ${currentSessionId}] 🎉 All ${totalJobsCreated} jobs complete!`)
-            return
+        // Start SSE stream for results
+        console.log('[VTON] Starting SSE stream...')
+        const eventSource = unifiedKioskApi.startVtonStream(
+          // On result
+          (result: VtonResultEvent) => {
+            console.log('[VTON] Received result:', result)
+            setJobs((prev) =>
+              prev.map((job) => {
+                if (job.garment_id === String(result.garment_id)) {
+                  // Use output_image_data (base64) if available, otherwise fallback to URL
+                  const img = result.output_image_data || result.output_image_url || null
+                  return {
+                    ...job,
+                    imageUrl: img,
+                    status: result.status,
+                    responseTime: Date.now() - startTime,
+                  }
+                }
+                return job
+              })
+            )
+            // Update store with results - collect all completed image URLs
+            setJobs((currentJobs) => {
+              const allUrls = currentJobs
+                .filter(j => j.imageUrl !== null)
+                .map(j => j.imageUrl!)
+
+              const newImg = result.output_image_data || result.output_image_url
+              if (newImg && !allUrls.includes(newImg)) {
+                allUrls.push(newImg)
+              }
+              setVtonResults(allUrls)
+              return currentJobs
+            })
+          },
+          // On error
+          (errorEvent: VtonErrorEvent) => {
+            console.error('[VTON] Error for garment:', errorEvent)
+            setJobs((prev) =>
+              prev.map((job) => {
+                if (job.garment_id === String(errorEvent.garment_id)) {
+                  return {
+                    ...job,
+                    status: errorEvent.status,
+                    error: errorEvent.error,
+                  }
+                }
+                return job
+              })
+            )
+          },
+          // On update
+          (update) => {
+            console.log('[VTON] Status update:', update)
+            setJobs((prev) =>
+              prev.map((job) => {
+                if (job.garment_id === update.job_id) {
+                  return { ...job, status: update.status }
+                }
+                return job
+              })
+            )
+          },
+          // On connection error
+          (connectionError) => {
+            console.error('[VTON] SSE connection error:', connectionError)
+            // Don't set error state - might just be connection issue
+            // Jobs will show as pending
           }
+        )
 
-          // Continue polling with updated list
-          console.log(`[Session ${currentSessionId}] ${totalJobsCreated - completedJobIds.size} jobs remaining, next poll in ${POLL_INTERVAL_MS}ms`)
-          pollTimeoutRef.current = window.setTimeout(() => pollOnce(updatedJobs, nextPollIndex), POLL_INTERVAL_MS)
-        } else {
-          // Not ready yet, poll again
-          console.log(`[POLL] Session ${currentSessionId} | ⏳ Still processing GARMENT ID: ${jobToPoll.garment_id}, retrying in ${POLL_INTERVAL_MS}ms`)
-          pollTimeoutRef.current = window.setTimeout(() => pollOnce(jobsList, nextPollIndex), POLL_INTERVAL_MS)
+        if (eventSource) {
+          eventSourceRef.current = eventSource
         }
       } catch (err) {
-        console.error(`[Session ${currentSessionId}] Poll error for ${jobToPoll.garment_id}:`, err)
-
-        // Re-check session validity
-        if (sessionIdRef.current !== currentSessionId) {
-          return
-        }
-
-        // Continue polling despite error
-        pollTimeoutRef.current = window.setTimeout(() => pollOnce(jobsList, nextPollIndex), POLL_INTERVAL_MS)
+        console.error('[VTON] Error:', err)
+        setError(err instanceof Error ? err.message : 'Failed to start try-on')
+        setIsRequestingVton(false)
       }
     }
 
-    // Create jobs and start polling
-    const createAndPoll = async () => {
-      const productsToProcess = selectedProducts.slice(0, 3)
-      console.log(`[Session ${currentSessionId}] Creating ${productsToProcess.length} VTON jobs...`)
+    startVton()
 
-      const jobPromises = productsToProcess.map(async (product) => {
-        try {
-          console.log(`[TRYON] Session ${currentSessionId} | Creating job for GARMENT ID: ${product.id}`)
-          await api.createVtonJob(userToken, userId, product.id)
-          return {
-            garment_id: String(product.id),
-            productName: product.title || 'Product',
-            imageUrl: null as string | null,
-          }
-        } catch (err) {
-          console.error(`[Session ${currentSessionId}] Error creating job for ${product.id}:`, err)
-          return null
-        }
-      })
-
-      const results = await Promise.all(jobPromises)
-
-      // Check session is still valid after async work
-      if (sessionIdRef.current !== currentSessionId) {
-        console.log(`[Session ${currentSessionId}] Session invalidated during job creation`)
-        return
-      }
-
-      const createdJobs = results.filter((j): j is VtonJob => j !== null)
-
-      if (createdJobs.length === 0) {
-        setError('Failed to create try-on jobs. Please try again.')
-        setIsCreatingJobs(false)
-        return
-      }
-
-      const allGarmentIds = createdJobs.map(j => j.garment_id).join(', ')
-      console.log(`[TRYON] Session ${currentSessionId} | ✓ JOBS CREATED | Total: ${createdJobs.length} | GARMENT IDs: [${allGarmentIds}]`)
-
-      totalJobsCreated = createdJobs.length
-      setJobs(createdJobs)
-      setIsCreatingJobs(false)
-
-      // Start polling after a short delay
-      console.log(`[Session ${currentSessionId}] Starting polling in 500ms...`)
-      pollTimeoutRef.current = window.setTimeout(() => {
-        console.log(`[Session ${currentSessionId}] First poll starting now`)
-        pollOnce(createdJobs, 0)
-      }, 500)
-    }
-
-    createAndPoll()
-
-    // Cleanup function - the session ID increment at the start of the next effect
-    // will automatically stop any ongoing polling
+    // Cleanup
     return () => {
-      console.log(`[Session ${currentSessionId}] Cleanup called`)
-      if (pollTimeoutRef.current) {
-        clearTimeout(pollTimeoutRef.current)
-        pollTimeoutRef.current = null
+      console.log('[VTON] Cleanup')
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close()
+        eventSourceRef.current = null
       }
-      // Reset for next real navigation (not StrictMode re-mount)
-      // Use setTimeout to allow StrictMode's immediate re-mount to see the flag as true
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+        abortControllerRef.current = null
+      }
+      // Reset flag for next navigation
       setTimeout(() => {
         hasInitiatedRef.current = false
       }, 100)
     }
-  }, [userId, userToken, selectedProducts, navigate, setVtonResults])
+  }, [selectedProducts, navigate, setVtonResults])
 
-  const handleDone = () => {
-    // Increment session to stop any ongoing polling
-    sessionIdRef.current++
-    if (pollTimeoutRef.current) {
-      clearTimeout(pollTimeoutRef.current)
-      pollTimeoutRef.current = null
+  const handleDone = async () => {
+    // Stop SSE stream
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close()
+      eventSourceRef.current = null
     }
-    // Reset all kiosk state for new user
-    resetAll()
+
+    // Complete the session
+    try {
+      await unifiedKioskApi.completeSession()
+    } catch (err) {
+      console.error('Failed to complete session:', err)
+    }
+
+    // Reset session state
+    resetSession()
     navigate('/')
   }
 
-  const allLoaded = jobs.length > 0 && jobs.every(j => j.imageUrl !== null)
+  const handleTryAgain = () => {
+    // Reset and go back to products
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close()
+      eventSourceRef.current = null
+    }
+    navigate('/products')
+  }
 
-  if (isCreatingJobs) {
+  // Check completion status
+  const completedJobs = jobs.filter((j) => j.imageUrl !== null)
+  const failedJobs = jobs.filter((j) => j.error)
+  const allDone = jobs.length > 0 && (completedJobs.length + failedJobs.length) >= jobs.length
+  const anySuccess = completedJobs.length > 0
+
+  // Loading state
+  if (isRequestingVton) {
     return (
       <div className="fixed inset-0 bg-black text-white overflow-hidden z-50 min-h-screen w-full flex flex-col items-center justify-center">
         <LoadingPulse className="text-white max-w-[200px]" />
@@ -248,13 +233,19 @@ const TryOnResultsScreen = () => {
     )
   }
 
-  if (error) {
+  // Error state
+  if (error && !anySuccess) {
     return (
       <div className="fixed inset-0 bg-black text-white overflow-hidden z-50 min-h-screen w-full flex flex-col items-center justify-center p-8">
         <p className="text-xl text-red-400 mb-6">{error}</p>
-        <button onClick={handleDone} className="px-8 py-3 bg-white text-black rounded-xl font-bold">
-          Return Home
-        </button>
+        <div className="flex gap-4">
+          <button onClick={handleTryAgain} className="px-8 py-3 bg-white/20 text-white rounded-xl font-bold hover:bg-white/30">
+            Try Again
+          </button>
+          <button onClick={handleDone} className="px-8 py-3 bg-white text-black rounded-xl font-bold">
+            Return Home
+          </button>
+        </div>
       </div>
     )
   }
@@ -282,13 +273,29 @@ const TryOnResultsScreen = () => {
             >
               {jobs.map((job) => (
                 <SwiperSlide key={job.garment_id} className="flex items-center justify-center">
-                  <div className="w-full max-w-md aspect-[3/4] bg-slate-800 rounded-2xl overflow-hidden border border-white/10 shadow-2xl flex items-center justify-center">
+                  <div className="w-full max-w-2xl aspect-[3/4] bg-slate-800 rounded-2xl overflow-hidden border border-white/10 shadow-2xl flex items-center justify-center">
                     {job.imageUrl ? (
                       <img src={job.imageUrl} alt={job.productName} className="w-full h-full object-cover" />
+                    ) : job.error ? (
+                      <div className="flex flex-col items-center gap-4 p-6">
+                        <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center">
+                          <svg className="w-8 h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </div>
+                        <p className="text-sm text-red-400 text-center">{job.error}</p>
+                        <p className="text-xs text-white/40">{job.productName}</p>
+                      </div>
                     ) : (
                       <div className="flex flex-col items-center gap-4 p-6">
                         <LoadingPulse className="text-white" />
                         <p className="text-sm text-white/60 text-center">Generating {job.productName}...</p>
+                        <p className="text-xs text-white/40 uppercase tracking-wide">{job.status}</p>
+                      </div>
+                    )}
+                    {job.responseTime && (
+                      <div className="absolute top-2 right-2 bg-black/60 px-2 py-1 rounded text-[10px] text-white/80 font-mono">
+                        {(job.responseTime / 1000).toFixed(1)}s
                       </div>
                     )}
                   </div>
@@ -300,11 +307,20 @@ const TryOnResultsScreen = () => {
           )}
         </div>
 
+        {/* Status indicator */}
+        {!allDone && (
+          <div className="px-[4%] pb-2 flex justify-center">
+            <p className="text-sm text-white/50">
+              {completedJobs.length} of {jobs.length} completed
+            </p>
+          </div>
+        )}
+
         <div className="px-[4%] pb-[6%] flex gap-4">
           <button
             onClick={handleDone}
-            disabled={!allLoaded}
-            className={`w-full py-4 rounded-xl font-bold ${allLoaded ? 'bg-white text-black' : 'bg-white/20 text-white/50 cursor-not-allowed'}`}
+            disabled={!allDone}
+            className={`w-full py-4 rounded-xl font-bold ${allDone ? 'bg-white text-black' : 'bg-white/20 text-white/50 cursor-not-allowed'}`}
           >
             Done
           </button>
@@ -315,3 +331,4 @@ const TryOnResultsScreen = () => {
 }
 
 export default TryOnResultsScreen
+

@@ -1,13 +1,17 @@
 /**
- * Captures a raw frame from a video element without any cropping or preprocessing.
- * Only mirrors horizontally to match the preview.
+ * Captures a frame, crops to 3:4 aspect ratio (bottom-anchored),
+ * resizes to 768x1024, and mirrors horizontally.
  */
 export const captureFrameToDataUrl = async (
   video: HTMLVideoElement,
   canvas: HTMLCanvasElement,
   track?: MediaStreamTrack | null,
 ) => {
-  // Prefer raw frame from camera track (full resolution), fallback to video element
+  // Target dimensions
+  // Target dimensions
+  const TARGET_ASPECT = 0.75 // 3:4
+
+  // Prefer raw frame from camera track
   const useImageCapture = track && 'ImageCapture' in window
   let sourceWidth = video.videoWidth
   let sourceHeight = video.videoHeight
@@ -15,7 +19,6 @@ export const captureFrameToDataUrl = async (
 
   if (useImageCapture) {
     try {
-      // Grab full-res frame directly from camera
       const imageCapture = new (window as any).ImageCapture(track!)
       const bitmap: ImageBitmap = await imageCapture.grabFrame()
       sourceWidth = bitmap.width
@@ -32,21 +35,54 @@ export const captureFrameToDataUrl = async (
     return null
   }
 
-  // Set canvas to full source dimensions - no cropping
-  canvas.width = sourceWidth
-  canvas.height = sourceHeight
+  // Calculate Crop (Source Coordinates)
+  let sx, sy, sw, sh
+  const sourceAspect = sourceWidth / sourceHeight
+
+  if (sourceAspect > TARGET_ASPECT) {
+    // Source is wider than target (Landscape input, Portrait target)
+    // Crop center width, keep full height
+    sh = sourceHeight
+    sw = sourceHeight * TARGET_ASPECT
+    sx = (sourceWidth - sw) / 2
+    sy = 0
+  } else {
+    // Source is taller than target (or equal).
+    // Crop height (remove top), keep full width
+    sw = sourceWidth
+    sh = sourceWidth / TARGET_ASPECT
+    sx = 0
+    // Anchor to Bottom: Start Y is total - crop height
+    sy = sourceHeight - sh
+
+    // Safety check if sy < 0 (shouldn't happen if sourceAspect < targetAspect)
+    if (sy < 0) sy = 0
+  }
+
+  console.log(`[Capture] Cropping: ${sw}x${sh} at (${sx},${sy}) from Source: ${sourceWidth}x${sourceHeight}`)
+
+  // Set canvas to Cropped Dimensions (Full Quality)
+  canvas.width = sw
+  canvas.height = sh
 
   const ctx = canvas.getContext('2d')
   if (!ctx) return null
 
-  // Mirror horizontally to match the preview
-  ctx.setTransform(-1, 0, 0, 1, sourceWidth, 0)
+  // Mirror horizontally
+  // Context Width is sw
+  ctx.setTransform(-1, 0, 0, 1, sw, 0)
 
-  // Draw the full frame without cropping
-  ctx.drawImage(drawable, 0, 0, sourceWidth, sourceHeight)
+  // Draw Cropped Region to Canvas
+  try {
+    ctx.drawImage(drawable, sx, sy, sw, sh, 0, 0, sw, sh)
+  } catch (err) {
+    console.error('[Capture] drawImage failed', err)
+    return null
+  }
 
-  console.log(`[Capture] Raw capture: ${sourceWidth}x${sourceHeight}`)
+  console.log(`[Capture] Final resolution: ${sw}x${sh}`)
 
-  return canvas.toDataURL('image/jpeg', 0.50) // 50% quality JPEG
+  // Return high quality JPEG
+  return canvas.toDataURL('image/jpeg', 0.90)
 }
 

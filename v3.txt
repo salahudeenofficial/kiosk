@@ -1,0 +1,4 @@
+- better product details PAGE
+- offline mode
+- back-to-idle and error messages for each PAGE
+- single shot preprocessi

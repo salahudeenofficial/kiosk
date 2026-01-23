@@ -46,8 +46,7 @@ const ProductCard = ({ product, onClick, onTryOn, onDetails: _onDetails, isSelec
 
   return (
     <div
-      onClick={onClick}
-      className={`product-card-height flex flex-col h-full w-full overflow-hidden bg-white text-slate-900 rounded-3xl border-2 shadow-lg shadow-black/5 cursor-pointer transition-all duration-200 hover:scale-[1.01] ${isSelected
+      className={`product-card-height flex flex-col h-full w-full overflow-hidden bg-white text-slate-900 rounded-3xl border-2 shadow-lg shadow-black/5 transition-all duration-200 ${isSelected
         ? 'border-slate-800 ring-2 ring-slate-800 ring-offset-2'
         : 'border-slate-200'
         }`}
@@ -79,7 +78,10 @@ const ProductCard = ({ product, onClick, onTryOn, onDetails: _onDetails, isSelec
       <div className="flex flex-col flex-1 p-3 sm:p-4 flex-shrink-0 min-h-0">
         {/* Product Name Section - Reduced size */}
         <div className="flex items-start justify-between gap-2 mb-1 flex-shrink-0">
-          <h3 className="text-sm font-semibold text-slate-900 leading-tight flex-1 line-clamp-2 overflow-hidden">
+          <h3
+            onClick={onClick}
+            className="text-sm font-semibold text-slate-900 leading-tight flex-1 line-clamp-2 overflow-hidden cursor-pointer hover:underline"
+          >
             {product.name}
           </h3>
         </div>

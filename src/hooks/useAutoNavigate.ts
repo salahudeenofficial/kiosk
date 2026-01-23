@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useKioskStore } from '../store/kioskStore'
+import { unifiedKioskApi } from '../utils/unifiedKioskApi'
 
 const useAutoNavigate = () => {
   const navigate = useNavigate()
@@ -14,6 +15,11 @@ const useAutoNavigate = () => {
 
     // Don't auto-navigate if we're on the idle screen
     if (path === '/') {
+      return
+    }
+
+    // Allow fit-check in mock mode without gender (for testing)
+    if (path === '/fit-check' && unifiedKioskApi.isMockMode()) {
       return
     }
 

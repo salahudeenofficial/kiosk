@@ -4,18 +4,36 @@ import Button from '../components/UI/Button'
 import Card from '../components/UI/Card'
 import MotionFade from '../components/UI/MotionFade'
 import { useKioskStore } from '../store/kioskStore'
+import { unifiedKioskApi } from '../utils/unifiedKioskApi'
 
 const SessionEnd = () => {
   const navigate = useNavigate()
-  const resetAll = useKioskStore((state) => state.resetAll)
+  const resetSession = useKioskStore((state) => state.resetSession)
 
   useEffect(() => {
+    // Complete the session on the backend
+    const completeSession = async () => {
+      try {
+        await unifiedKioskApi.completeSession()
+      } catch (err) {
+        console.error('Failed to complete session:', err)
+      }
+    }
+    completeSession()
+
+    // Auto-navigate back to home after 5 seconds
     const timer = window.setTimeout(() => {
-      resetAll()
+      resetSession()
       navigate('/')
     }, 5000)
+
     return () => window.clearTimeout(timer)
-  }, [navigate, resetAll])
+  }, [navigate, resetSession])
+
+  const handleRestart = () => {
+    resetSession()
+    navigate('/')
+  }
 
   return (
     <MotionFade>
@@ -24,7 +42,7 @@ const SessionEnd = () => {
         <p className="text-clamp-body text-white/70">
           Your session is complete. We&apos;re resetting for the next guest.
         </p>
-        <Button onClick={() => navigate('/')}>Restart now</Button>
+        <Button onClick={handleRestart}>Restart now</Button>
       </Card>
     </MotionFade>
   )

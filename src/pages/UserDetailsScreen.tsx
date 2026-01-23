@@ -4,7 +4,7 @@ import MotionFade from '../components/UI/MotionFade'
 import LoadingPulse from '../components/UI/LoadingPulse'
 import { useKioskStore } from '../store/kioskStore'
 import { useNavigate } from 'react-router-dom'
-import { api } from '../utils/api'
+import { unifiedKioskApi } from '../utils/unifiedKioskApi'
 
 const UserDetailsScreen = () => {
   const navigate = useNavigate()
@@ -12,6 +12,7 @@ const UserDetailsScreen = () => {
   const userHeight = useKioskStore((state) => state.userHeight)
   const setUserGender = useKioskStore((state) => state.setUserGender)
   const setUserHeight = useKioskStore((state) => state.setUserHeight)
+  const sessionId = useKioskStore((state) => state.sessionId)
 
   const [heightValue, setHeightValue] = useState(userHeight || '')
   const [loading, setLoading] = useState(false)
@@ -28,6 +29,14 @@ const UserDetailsScreen = () => {
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
   }, [])
 
+  // Check if we have an active session
+  useEffect(() => {
+    if (!sessionId && !unifiedKioskApi.getSession()) {
+      // No session, redirect to home to create one
+      navigate('/', { replace: true })
+    }
+  }, [sessionId, navigate])
+
   const toggleFullscreen = async () => {
     try {
       if (!document.fullscreenElement) {
@@ -42,35 +51,29 @@ const UserDetailsScreen = () => {
     }
   }
 
-  const setUserToken = useKioskStore((state) => state.setUserToken)
-  const setUserId = useKioskStore((state) => state.setUserId)
-
   const handleStart = async () => {
     if (!userGender || !heightValue) return
+
+    // Validate height range (backend expects 50-250 cm)
+    const heightNum = parseFloat(heightValue)
+    if (isNaN(heightNum) || heightNum < 50 || heightNum > 250) {
+      setError('Please enter a valid height between 50 and 250 cm')
+      return
+    }
 
     setLoading(true)
     setError(null)
 
     try {
-      // Step 1: Signup user
-      const signupResponse = await api.signup()
-      const token = signupResponse.token
-      const userId = signupResponse.user.id
+      // Update profile with the new session-based API
+      await unifiedKioskApi.updateProfile(undefined, heightNum, userGender)
 
-      // Step 2: Save token and userId to store for future API calls
-      setUserToken(token)
-      setUserId(userId)
-
-      // Step 3: Update user details with gender and height
-      const heightNum = parseFloat(heightValue)
-      await api.updateUserDetails(token, userGender, heightNum)
-
-      // Step 4: Save to store and navigate
+      // Save to store and navigate
       setUserHeight(heightValue)
       navigate('/capture')
     } catch (err) {
-      console.error('Signup/update failed:', err)
-      setError(err instanceof Error ? err.message : 'Failed to create account. Please try again.')
+      console.error('Profile update failed:', err)
+      setError(err instanceof Error ? err.message : 'Failed to update profile. Please try again.')
       setLoading(false)
     }
   }
@@ -83,7 +86,7 @@ const UserDetailsScreen = () => {
         <div className="flex flex-col items-center gap-[4%]">
           <LoadingPulse className="text-white" />
           <p className="text-clamp-body text-white/70 text-center">
-            Creating your account...
+            Saving your details...
           </p>
         </div>
       </div>
@@ -193,7 +196,7 @@ const UserDetailsScreen = () => {
           </div>
 
           {error && (
-            <div className="w-full p-[4%] bg-red-900/30 border border-red-500/50 rounded-xl">
+            <div className="w-full mt-[4%] p-[4%] bg-red-900/30 border border-red-500/50 rounded-xl">
               <p className="text-sm sm:text-base text-red-200 text-center">
                 {error}
               </p>

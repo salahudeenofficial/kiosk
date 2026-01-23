@@ -308,5 +308,56 @@ export const api = {
       throw error
     }
   },
+
+  /**
+   * Get user measurements from backend
+   * Returns measurements if ready, null if still processing
+   */
+  async getUserMeasurements(
+    token: string,
+  ): Promise<{ status: string; measurements: Record<string, number> | null }> {
+    const url = getApiUrl('/api/users/measurements')
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        signal: AbortSignal.timeout(API_CONFIG.TIMEOUT),
+      })
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Authentication failed')
+        }
+        throw new Error(`Failed to get measurements: ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      if (!data.success) {
+        throw new Error(data.error?.message || 'Failed to get measurements')
+      }
+
+      // Parse measurements string into object if available
+      if (data.data.status === 'success' && data.data.measurements) {
+        const measurementsObj: Record<string, number> = {}
+        const lines = data.data.measurements.split('\n')
+        lines.forEach((line: string) => {
+          const [key, value] = line.split(',')
+          if (key && value) {
+            measurementsObj[key.trim()] = Math.round(parseFloat(value.trim()))
+          }
+        })
+        return { status: 'success', measurements: measurementsObj }
+      }
+
+      return { status: data.data.status || 'processing', measurements: null }
+    } catch (error) {
+      console.error('Get measurements error:', error)
+      throw error
+    }
+  },
 }
 

@@ -1,0 +1,667 @@
+/**
+ * Kiosk API - New backend integration
+ * 
+ * This module handles all communication with the new kiosk backend API.
+ * It uses session-based authentication with JWT tokens.
+ */
+
+import {
+    API_CONFIG,
+    getApiUrl,
+    getStoredKioskConfig,
+    getStoredSession,
+    storeKioskConfig,
+    storeSession,
+    clearSession,
+    type KioskConfig,
+    type KioskSession,
+} from './config'
+
+// API response types
+type ApiResponse<T> = {
+    success: boolean
+    data?: T
+    error?: {
+        message: string
+        code?: string
+    }
+}
+
+// Configure response
+type ConfigureResponse = {
+    kiosk_id: string
+    client_id: number
+    client_name: string
+    location_id: number
+    location_name: string
+    status: string
+    config: {
+        session_timeout_minutes: number
+        max_garments_per_session: number
+    }
+}
+
+// Session response
+type SessionResponse = {
+    session_id: string
+    user_id: number
+    expires_at: string
+    token: string
+}
+
+// Session update response
+type SessionUpdateResponse = {
+    session_id: string
+    user_id: number
+    age?: number
+    height?: number
+    updated_at: string
+}
+
+// Image upload response
+type ImageUploadResponse = {
+    session_id: string
+    user_id: number
+    image_url: string
+    status: string
+    current_step: string
+}
+
+// Catalog types
+export type CatalogProduct = {
+    productId: number
+    name: string
+    mrp: number
+    imageUrl: string
+    brand: { id: number; name: string }
+    category: { id: number; name: string; gender: string }
+}
+
+type CatalogResponse = {
+    products: CatalogProduct[]
+    pagination: {
+        total: number
+        limit: number
+        offset: number
+        hasNext: boolean
+        hasPrevious: boolean
+    }
+}
+
+// VTON job types
+export type VtonJob = {
+    job_id: string
+    garment_id: number
+    status: string
+}
+
+type VtonRequestResponse = {
+    session_id: string
+    jobs: VtonJob[]
+    current_step: string
+}
+
+// SSE Event types
+export type VtonResultEvent = {
+    job_id: string
+    garment_id: number
+    status: string
+    output_image_data?: string | null
+    output_image_url?: string | null
+    error?: string | null
+    timestamp?: string
+}
+
+export type VtonErrorEvent = {
+    job_id: string
+    garment_id: number
+    status: string
+    error: string
+}
+
+export type VtonUpdateEvent = {
+    job_id: string
+    status: string
+}
+
+// Helper to get auth headers from stored config
+const getKioskHeaders = (): Record<string, string> => {
+    const config = getStoredKioskConfig()
+    if (!config) {
+        throw new Error('Kiosk not configured. Please configure the kiosk first.')
+    }
+    return {
+        'X-Client-ID': config.clientId,
+        'X-Client-Secret': config.clientSecret,
+        'X-Kiosk-ID': config.kioskId,
+    }
+}
+
+// Helper to get session auth headers (includes both JWT and kiosk headers)
+const getSessionHeaders = (): Record<string, string> => {
+    const session = getStoredSession()
+    if (!session) {
+        throw new Error('No active session. Please start a new session.')
+    }
+    // Include both JWT token AND kiosk headers as backend may require both
+    return {
+        ...getKioskHeaders(),
+        'Authorization': `Bearer ${session.token}`,
+    }
+}
+
+// Helper to safely parse JSON response or return error details
+const parseJsonResponse = async <T>(response: Response): Promise<{ ok: boolean; data?: T; error?: string }> => {
+    const text = await response.text()
+    try {
+        const json = JSON.parse(text)
+        return { ok: response.ok, data: json }
+    } catch {
+        // Not JSON - return the text as error message
+        return { ok: false, error: text || `HTTP ${response.status}` }
+    }
+}
+
+/**
+ * Kiosk API service
+ */
+export const kioskApi = {
+    /**
+     * Configure the kiosk with client credentials
+     * This should be called once during kiosk setup
+     */
+    async configure(
+        clientId: string,
+        clientSecret: string,
+        kioskId: string
+    ): Promise<ConfigureResponse> {
+        const url = getApiUrl(API_CONFIG.ENDPOINTS.KIOSK_CONFIGURE)
+
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'X-Client-ID': clientId,
+                    'X-Client-Secret': clientSecret,
+                    'X-Kiosk-ID': kioskId,
+                    'Content-Type': 'application/json',
+                },
+                signal: AbortSignal.timeout(API_CONFIG.TIMEOUT),
+            })
+
+            const data: ApiResponse<ConfigureResponse> = await response.json()
+
+            if (!response.ok || !data.success || !data.data) {
+                throw new Error(data.error?.message || `Configuration failed: ${response.status}`)
+            }
+
+            // Store the configuration
+            const config: KioskConfig = {
+                clientId,
+                clientSecret,
+                kioskId,
+                locationId: data.data.location_id,
+                locationName: data.data.location_name,
+                clientName: data.data.client_name,
+            }
+            storeKioskConfig(config)
+
+            return data.data
+        } catch (error) {
+            console.error('Kiosk configuration error:', error)
+            throw error
+        }
+    },
+
+    /**
+     * Check if kiosk is configured
+     */
+    isConfigured(): boolean {
+        return getStoredKioskConfig() !== null
+    },
+
+    /**
+     * Get current kiosk configuration
+     */
+    getConfig(): KioskConfig | null {
+        return getStoredKioskConfig()
+    },
+
+    /**
+     * Create a new session (when user touches the screen)
+     */
+    async createSession(): Promise<KioskSession> {
+        const url = getApiUrl(API_CONFIG.ENDPOINTS.KIOSK_SESSIONS)
+
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    ...getKioskHeaders(),
+                    'Content-Type': 'application/json',
+                },
+                signal: AbortSignal.timeout(API_CONFIG.TIMEOUT),
+            })
+
+            const data: ApiResponse<SessionResponse> = await response.json()
+
+            if (!response.ok || !data.success || !data.data) {
+                throw new Error(data.error?.message || `Session creation failed: ${response.status}`)
+            }
+
+            // Store the session
+            const session: KioskSession = {
+                sessionId: data.data.session_id,
+                userId: data.data.user_id,
+                token: data.data.token,
+                expiresAt: data.data.expires_at,
+            }
+            storeSession(session)
+
+            return session
+        } catch (error) {
+            console.error('Session creation error:', error)
+            throw error
+        }
+    },
+
+    /**
+     * Get current session
+     */
+    getSession(): KioskSession | null {
+        return getStoredSession()
+    },
+
+    /**
+     * Update session profile (age, height)
+     */
+    async updateProfile(age?: number, height?: number, gender?: string): Promise<SessionUpdateResponse> {
+        const session = getStoredSession()
+        if (!session) {
+            throw new Error('No active session')
+        }
+
+        const url = getApiUrl(`${API_CONFIG.ENDPOINTS.KIOSK_SESSION_UPDATE}/${session.sessionId}`)
+
+        try {
+            const body: { age?: number; height?: number; gender?: string } = {}
+            if (age !== undefined) body.age = age
+            if (height !== undefined) body.height = height
+            if (gender !== undefined) body.gender = gender
+
+            console.log('[API] Updating profile:', { url, body })
+
+            const response = await fetch(url, {
+                method: 'PATCH',
+                headers: {
+                    ...getSessionHeaders(),
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify(body),
+                signal: AbortSignal.timeout(API_CONFIG.TIMEOUT),
+            })
+
+            const result = await parseJsonResponse<ApiResponse<SessionUpdateResponse>>(response)
+
+            // Handle 422 validation errors specially
+            if (response.status === 422 && result.data) {
+                const detail = (result.data as unknown as { detail?: Array<{ msg: string; loc: string[] }> }).detail
+                if (detail && Array.isArray(detail)) {
+                    const errorMsg = detail.map(d => `${d.loc.join('.')}: ${d.msg}`).join(', ')
+                    throw new Error(`Validation error: ${errorMsg}`)
+                }
+            }
+
+            if (!result.ok || result.error) {
+                console.error('[API] Profile update failed:', result)
+                throw new Error(result.error || `Profile update failed: ${response.status}`)
+            }
+
+            const data = result.data as ApiResponse<SessionUpdateResponse>
+            if (!data?.success || !data?.data) {
+                throw new Error(data?.error?.message || `Profile update failed: ${response.status}`)
+            }
+
+            return data.data
+        } catch (error) {
+            console.error('Profile update error:', error)
+            throw error
+        }
+    },
+
+    /**
+     * Upload user image
+     */
+    async uploadImage(imageFile: File | Blob): Promise<ImageUploadResponse> {
+        const session = getStoredSession()
+        if (!session) {
+            throw new Error('No active session')
+        }
+
+        const url = getApiUrl(`${API_CONFIG.ENDPOINTS.KIOSK_SESSION_IMAGE}/${session.sessionId}/image`)
+
+        try {
+            const formData = new FormData()
+            formData.append('image', imageFile)
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    ...getSessionHeaders(),
+                    // Don't set Content-Type - browser will set it with boundary
+                },
+                credentials: 'include',
+                body: formData,
+                signal: AbortSignal.timeout(API_CONFIG.TIMEOUT),
+            })
+
+            const data: ApiResponse<ImageUploadResponse> = await response.json()
+
+            if (!response.ok || !data.success || !data.data) {
+                throw new Error(data.error?.message || `Image upload failed: ${response.status}`)
+            }
+
+            // Update session step
+            const updatedSession = { ...session, currentStep: data.data.current_step }
+            storeSession(updatedSession)
+
+            return data.data
+        } catch (error) {
+            console.error('Image upload error:', error)
+            throw error
+        }
+    },
+
+    /**
+     * Upload user image from base64 data URL
+     */
+    async uploadImageFromDataUrl(dataUrl: string): Promise<ImageUploadResponse> {
+        // Convert base64 data URL to Blob
+        const response = await fetch(dataUrl)
+        const blob = await response.blob()
+
+        // Determine file extension from mime type
+        const mimeType = blob.type || 'image/jpeg'
+        const extension = mimeType.split('/')[1] || 'jpg'
+        const filename = `user-image-${Date.now()}.${extension}`
+
+        // Create File object
+        const file = new File([blob], filename, { type: mimeType })
+        console.log(`[Upload] Uploading file: ${filename}, size: ${(file.size / 1024).toFixed(1)} KB`)
+
+        return this.uploadImage(file)
+    },
+
+    /**
+     * Load catalog
+     */
+    async loadCatalog(filters: {
+        limit?: number
+        offset?: number
+        categoryId?: number
+        gender?: string
+        search?: string
+    } = {}): Promise<CatalogResponse> {
+        const params = new URLSearchParams()
+        params.append('limit', String(filters.limit || 50))
+        params.append('offset', String(filters.offset || 0))
+        if (filters.categoryId) params.append('category_id', String(filters.categoryId))
+        if (filters.gender) params.append('gender', filters.gender)
+        if (filters.search) params.append('search', filters.search)
+
+        const url = `${getApiUrl(API_CONFIG.ENDPOINTS.KIOSK_CATALOG)}?${params}`
+
+        try {
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    ...getSessionHeaders(),
+                },
+                credentials: 'include',
+                signal: AbortSignal.timeout(API_CONFIG.TIMEOUT),
+            })
+
+            const data: ApiResponse<CatalogResponse> = await response.json()
+
+            if (!response.ok || !data.success || !data.data) {
+                throw new Error(data.error?.message || `Catalog load failed: ${response.status}`)
+            }
+
+            return data.data
+        } catch (error) {
+            console.error('Catalog load error:', error)
+            throw error
+        }
+    },
+
+    /**
+     * Request VTON for selected garments
+     */
+    async requestVton(garmentIds: number[]): Promise<VtonRequestResponse> {
+        const session = getStoredSession()
+        if (!session) {
+            throw new Error('No active session')
+        }
+
+        if (garmentIds.length === 0) {
+            throw new Error('Please select at least one garment')
+        }
+
+        if (garmentIds.length > API_CONFIG.MAX_GARMENTS_PER_SESSION) {
+            throw new Error(`Maximum ${API_CONFIG.MAX_GARMENTS_PER_SESSION} garments allowed`)
+        }
+
+        const url = getApiUrl(`${API_CONFIG.ENDPOINTS.KIOSK_SESSION_VTON}/${session.sessionId}/vton`)
+
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    ...getSessionHeaders(),
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify({ garment_ids: garmentIds }),
+                signal: AbortSignal.timeout(API_CONFIG.TIMEOUT),
+            })
+
+            const data: ApiResponse<VtonRequestResponse> = await response.json()
+
+            if (!response.ok || !data.success || !data.data) {
+                throw new Error(data.error?.message || `VTON request failed: ${response.status}`)
+            }
+
+            // Update session step
+            const updatedSession = { ...session, currentStep: data.data.current_step }
+            storeSession(updatedSession)
+
+            return data.data
+        } catch (error) {
+            console.error('VTON request error:', error)
+            throw error
+        }
+    },
+
+    /**
+     * Start SSE stream for VTON results
+     * Returns an EventSource that can be used to listen for events
+     */
+    startVtonStream(
+        onResult: (result: VtonResultEvent) => void,
+        onError: (error: VtonErrorEvent) => void,
+        onUpdate?: (update: VtonUpdateEvent) => void,
+        onConnectionError?: (error: Error) => void
+    ): EventSource | null {
+        const session = getStoredSession()
+        if (!session) {
+            onConnectionError?.(new Error('No active session'))
+            return null
+        }
+
+        // EventSource doesn't support custom headers, so we pass token as query param
+        const url = `${getApiUrl(API_CONFIG.ENDPOINTS.KIOSK_SESSION_STREAM)}/${session.sessionId}/stream?token=${encodeURIComponent(session.token)}`
+
+        try {
+            const eventSource = new EventSource(url)
+
+            eventSource.addEventListener('connected', (event) => {
+                console.log('SSE connected:', JSON.parse((event as MessageEvent).data))
+            })
+
+            eventSource.addEventListener('vton_result', (event) => {
+                const result: VtonResultEvent = JSON.parse((event as MessageEvent).data)
+                console.log('VTON result:', result)
+                onResult(result)
+            })
+
+            eventSource.addEventListener('vton_error', (event) => {
+                const error: VtonErrorEvent = JSON.parse((event as MessageEvent).data)
+                console.error('VTON error:', error)
+                onError(error)
+            })
+
+            eventSource.addEventListener('vton_update', (event) => {
+                const update: VtonUpdateEvent = JSON.parse((event as MessageEvent).data)
+                console.log('VTON update:', update)
+                onUpdate?.(update)
+            })
+
+            eventSource.onerror = (error) => {
+                console.error('SSE error:', error)
+                if (eventSource.readyState === EventSource.CLOSED) {
+                    onConnectionError?.(new Error('SSE connection closed'))
+                }
+            }
+
+            return eventSource
+        } catch (error) {
+            console.error('Failed to start SSE stream:', error)
+            onConnectionError?.(error instanceof Error ? error : new Error(String(error)))
+            return null
+        }
+    },
+
+    /**
+     * Alternative: Use fetch API for SSE stream (better header support)
+     * This is the recommended approach for production
+     */
+    async startVtonStreamWithFetch(
+        onResult: (result: VtonResultEvent) => void,
+        onError: (error: VtonErrorEvent) => void,
+        onUpdate?: (update: VtonUpdateEvent) => void,
+        signal?: AbortSignal
+    ): Promise<void> {
+        const session = getStoredSession()
+        if (!session) {
+            throw new Error('No active session')
+        }
+
+        const url = `${getApiUrl(API_CONFIG.ENDPOINTS.KIOSK_SESSION_STREAM)}/${session.sessionId}/stream`
+
+        try {
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    ...getSessionHeaders(),
+                    'Accept': 'text/event-stream',
+                },
+                credentials: 'include',
+                signal,
+            })
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`)
+            }
+
+            const reader = response.body?.getReader()
+            if (!reader) {
+                throw new Error('No response body')
+            }
+
+            const decoder = new TextDecoder()
+            let buffer = ''
+            let currentEventType = ''
+
+            while (true) {
+                const { done, value } = await reader.read()
+
+                if (done) {
+                    console.log('Stream ended')
+                    break
+                }
+
+                buffer += decoder.decode(value, { stream: true })
+                const lines = buffer.split('\n')
+                buffer = lines.pop() || '' // Keep incomplete line in buffer
+
+                for (const line of lines) {
+                    if (line.startsWith('event:')) {
+                        currentEventType = line.substring(6).trim()
+                    } else if (line.startsWith('data:')) {
+                        const data = JSON.parse(line.substring(5).trim())
+
+                        switch (currentEventType) {
+                            case 'vton_result':
+                                onResult(data as VtonResultEvent)
+                                break
+                            case 'vton_error':
+                                onError(data as VtonErrorEvent)
+                                break
+                            case 'vton_update':
+                                onUpdate?.(data as VtonUpdateEvent)
+                                break
+                            case 'connected':
+                                console.log('SSE connected:', data)
+                                break
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            if ((error as Error).name === 'AbortError') {
+                console.log('SSE stream aborted')
+                return
+            }
+            console.error('SSE stream error:', error)
+            throw error
+        }
+    },
+
+    /**
+     * Complete session (when user finishes or session times out)
+     */
+    async completeSession(): Promise<void> {
+        const session = getStoredSession()
+        if (!session) {
+            return // No session to complete
+        }
+
+        const url = getApiUrl(`${API_CONFIG.ENDPOINTS.KIOSK_SESSION_COMPLETE}/${session.sessionId}/complete`)
+
+        try {
+            await fetch(url, {
+                method: 'POST',
+                headers: {
+                    ...getSessionHeaders(),
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                signal: AbortSignal.timeout(API_CONFIG.TIMEOUT),
+            })
+        } catch (error) {
+            console.error('Session completion error:', error)
+            // Don't throw - we still want to clear the session locally
+        } finally {
+            clearSession()
+        }
+    },
+
+    /**
+     * Clear session without calling the API
+     */
+    clearSession(): void {
+        clearSession()
+    },
+}
+

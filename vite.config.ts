@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: true,
-    port: 5173,
+    port: 5174,
     allowedHosts: [
       'bayleigh-irritable-distractingly.ngrok-free.dev',
       '.ngrok-free.dev',
@@ -15,7 +15,7 @@ export default defineConfig({
     ],
     proxy: {
       '/api': {
-        target: 'http://51.20.86.26:8000',
+        target: 'http://35.154.214.159:8000',
         changeOrigin: true,
         secure: false,
       }

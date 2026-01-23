@@ -212,6 +212,7 @@ const AutoCamera = () => {
 
       setHasCaptured(true)
       setStatus('Capturing frame…')
+
       setUserImage(dataUrl)
       setTimeout(() => navigate('/validate'), 350)
     } catch (err) {
@@ -221,12 +222,13 @@ const AutoCamera = () => {
   }
 
   return (
-    <div className="relative w-full h-full flex items-center justify-center">
-      <div className="relative w-full h-full max-w-[90vw] max-h-[80vh] rounded-2xl overflow-hidden border border-white/10 bg-black">
+    <div className="relative w-full h-full flex items-center justify-center p-4">
+      {/* Container forced to 3:4 aspect ratio */}
+      <div className="relative h-full max-h-[85vh] aspect-[3/4] w-auto max-w-full rounded-3xl overflow-hidden border-4 border-white/20 bg-black shadow-2xl">
         <video
           ref={videoRef}
-          className="w-full h-full object-contain rounded-2xl"
-          style={{ transform: 'scaleX(-1)' }}
+          className="w-full h-full object-cover"
+          style={{ transform: 'scaleX(-1)', objectPosition: 'bottom center' }}
           playsInline
           muted
         />

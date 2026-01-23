@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Body Measurements Heatmap</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="fit.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+
+    <button class="back-btn" aria-label="Go Back">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+    </button>
+
+    <div class="container">
+        <header>
+            <h1 class="text-3xl md:text-5xl font-bold text-white mb-2">Your Body Measurements</h1>
+            <p class="subtitle text-lg text-slate-400">Select a reference size to check your fit</p>
+            <div id="recommendation-msg" class="recommendation-msg"></div>
+        </header>
+
+        <div class="content-grid">
+            <!-- Heatmap is now central -->
+            <div class="heatmap-panel">
+                <!-- Measurements List (Left Side - Collapsible) -->
+                <div id="measurements-panel" class="measurements-panel collapsed">
+                    <div class="panel-header">
+                        <span class="panel-title">Measurements</span>
+                    </div>
+                    <div id="measurements-list">
+                        <!-- Javascript will populate this -->
+                    </div>
+                </div>
+
+                <!-- Toggle Button (Moved after panel for CSS sibling selection) -->
+                <button id="panel-toggle" class="panel-toggle" aria-label="Toggle Measurements">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="toggle-icon">
+                        <path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" />
+                    </svg>
+                    <span class="toggle-label">MEASUREMENTS</span>
+                </button>
+
+                <div class="heatmap-content">
+                    <svg class="body-svg" viewBox="0 0 200 600" xmlns="http://www.w3.org/2000/svg">
+                        <!-- Head -->
+                        <circle cx="100" cy="50" r="30" class="body-part" id="head" />
+
+                        <!-- Neck -->
+                        <rect x="85" y="80" width="30" height="20" class="body-part" id="neck" rx="5" />
+
+                        <!-- Chest/Torso Upper -->
+                        <path d="M 60 110 C 60 110, 140 110, 140 110 L 130 180 L 70 180 Z" class="body-part"
+                            id="chest" />
+
+                        <!-- Waist/Mid Section -->
+                        <rect x="70" y="180" width="60" height="40" class="body-part" id="waist" />
+
+                        <!-- Hips/Lower Torso -->
+                        <path d="M 70 220 L 130 220 L 140 280 L 60 280 Z" class="body-part" id="hips" />
+
+                        <!-- Left Arm (Upper) -->
+                        <rect x="30" y="110" width="25" height="80" class="body-part" id="l-arm-upper" rx="10" />
+                        <!-- Right Arm (Upper) -->
+                        <rect x="145" y="110" width="25" height="80" class="body-part" id="r-arm-upper" rx="10" />
+
+                        <!-- Left Arm (Lower) -->
+                        <rect x="30" y="195" width="25" height="70" class="body-part" id="l-arm-lower" rx="10" />
+                        <!-- Right Arm (Lower) -->
+                        <rect x="145" y="195" width="25" height="70" class="body-part" id="r-arm-lower" rx="10" />
+
+                        <!-- Left Leg (Thigh) -->
+                        <path d="M 60 280 L 95 280 L 90 400 L 65 400 Z" class="body-part" id="l-thigh" />
+                        <!-- Right Leg (Thigh) -->
+                        <path d="M 105 280 L 140 280 L 135 400 L 110 400 Z" class="body-part" id="r-thigh" />
+
+                        <!-- Left Leg (Calf) -->
+                        <rect x="65" y="405" width="25" height="90" class="body-part" id="l-calf" rx="5" />
+                        <!-- Right Leg (Calf) -->
+                        <rect x="110" y="405" width="25" height="90" class="body-part" id="r-calf" rx="5" />
+
+                    </svg>
+
+                    <div class="legend">
+                        <div class="legend-item"><span class="dot v-tight"></span> V.Tight</div>
+                        <div class="legend-item"><span class="dot tight"></span> Tight</div>
+                        <div class="legend-item"><span class="dot snug"></span> Snug</div>
+                        <div class="legend-item"><span class="dot good"></span> Perfect</div>
+                        <div class="legend-item"><span class="dot relaxed"></span> Relaxed</div>
+                        <div class="legend-item"><span class="dot loose"></span> Loose</div>
+                        <div class="legend-item"><span class="dot v-loose"></span> V.Loose</div>
+                    </div>
+                </div>
+
+                <!-- Size Controls (Right Side - Always Visible) -->
+                <div id="size-selector-panel" class="size-selector-group">
+                    <span
+                        class="selector-label block text-sm font-bold uppercase text-white mb-4 tracking-wide text-left w-full">Try
+                        alternate sizes</span>
+                    <div id="size-options" class="size-options">
+                        <!-- Javascript will populate buttons here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="fit.js"></script>
+</body>
+
+</html>

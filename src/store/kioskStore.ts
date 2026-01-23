@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { Product } from '../utils/mockApi'
 
 type KioskState = {
+  // User session state
   userImage: string | null
   validated: boolean
   products: Product[]
@@ -13,9 +14,23 @@ type KioskState = {
   sessionStartedAt: number
   userGender: 'male' | 'female' | null
   userHeight: string | null
+  userAge: number | null // Added for new backend
+  selectedSize: string | null // Selected garment size
+  userImageUrl: string | null // Backend URL of uploaded image
+  userMeasurements: Record<string, number> | null // User body measurements from API
+
+  // Legacy auth (kept for compatibility)
   userToken: string | null // Auth token for API calls
   userId: number | null // User ID from signup
-  userImageUrl: string | null // Backend URL of uploaded image
+
+  // New session-based auth
+  isConfigured: boolean // Whether kiosk is configured
+  sessionId: string | null // Current session ID
+  sessionToken: string | null // JWT token for session
+  sessionUserId: number | null // User ID from session
+  sessionExpiresAt: string | null // Session expiry time
+
+  // Actions
   setUserImage: (image: string | null) => void
   setValidated: (value: boolean) => void
   setProducts: (items: Product[]) => void
@@ -30,10 +45,28 @@ type KioskState = {
   clearCart: () => void
   setUserGender: (gender: 'male' | 'female' | null) => void
   setUserHeight: (height: string | null) => void
+  setUserAge: (age: number | null) => void
   setUserToken: (token: string | null) => void
   setUserId: (id: number | null) => void
   setUserImageUrl: (url: string | null) => void
+  setSelectedSize: (size: string | null) => void
+  setUserMeasurements: (measurements: Record<string, number> | null) => void
+
+  // New session actions
+  setIsConfigured: (configured: boolean) => void
+  setSession: (session: {
+    sessionId: string
+    token: string
+    userId: number
+    expiresAt: string
+  } | null) => void
+
   resetAll: () => void
+  resetSession: () => void // New: Reset only session state, keep config
+
+  // UI State
+  productListScrollPosition: number
+  setProductListScrollPosition: (position: number) => void
 }
 
 const baseState = () => ({
@@ -48,9 +81,18 @@ const baseState = () => ({
   sessionStartedAt: Date.now(),
   userGender: null,
   userHeight: null,
+  userAge: null,
   userToken: null,
   userId: null,
   userImageUrl: null,
+  selectedSize: null,
+  userMeasurements: null,
+  // New session state
+  isConfigured: false,
+  sessionId: null,
+  sessionToken: null,
+  sessionUserId: null,
+  sessionExpiresAt: null,
 })
 
 export const useKioskStore = create<KioskState>((set, get) => ({
@@ -90,9 +132,50 @@ export const useKioskStore = create<KioskState>((set, get) => ({
   clearCart: () => set({ cart: [] }),
   setUserGender: (gender) => set({ userGender: gender }),
   setUserHeight: (height) => set({ userHeight: height }),
+  setUserAge: (age) => set({ userAge: age }),
   setUserToken: (token) => set({ userToken: token }),
   setUserId: (id) => set({ userId: id }),
   setUserImageUrl: (url) => set({ userImageUrl: url }),
+  setSelectedSize: (size) => set({ selectedSize: size }),
+  setUserMeasurements: (measurements) => set({ userMeasurements: measurements }),
+
+  // New session actions
+  setIsConfigured: (configured) => set({ isConfigured: configured }),
+  setSession: (session) => {
+    if (session) {
+      set({
+        sessionId: session.sessionId,
+        sessionToken: session.token,
+        sessionUserId: session.userId,
+        sessionExpiresAt: session.expiresAt,
+        // Also sync with legacy state for compatibility
+        userToken: session.token,
+        userId: session.userId,
+      })
+    } else {
+      set({
+        sessionId: null,
+        sessionToken: null,
+        sessionUserId: null,
+        sessionExpiresAt: null,
+        userToken: null,
+        userId: null,
+      })
+    }
+  },
+
   resetAll: () => set(() => baseState()),
+
+  // Reset session but keep configuration status
+  resetSession: () => {
+    const isConfigured = get().isConfigured
+    set(() => ({
+      ...baseState(),
+      isConfigured, // Preserve configuration status
+    }))
+  },
+  // UI State
+  productListScrollPosition: 0,
+  setProductListScrollPosition: (position) => set({ productListScrollPosition: position }),
 }))
 
