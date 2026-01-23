@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import MotionFade from '../components/UI/MotionFade'
 import { useKioskStore } from '../store/kioskStore'
@@ -151,9 +151,9 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
     const apiMeasurements = useKioskStore((state) => state.userMeasurements)
     const setSelectedSize = useKioskStore((state) => state.setSelectedSize)
 
-    const [selectedSize, setSize] = useState<string>('M')
     const [isPanelOpen, setIsPanelOpen] = useState(false)
     const [hoveredRegion, setHoveredRegion] = useState<string | null>(null)
+    const [selectedSize, setSize] = useState<string>('M')
 
     // Get user measurements - from API if available, otherwise defaults
     const userMeasurements = useMemo(() => {
@@ -169,27 +169,6 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
         return measurements
     }, [apiMeasurements])
 
-    // Calculate fit status for each measurement
-    const fitStatuses = useMemo(() => {
-        const statuses: Record<string, FitStatus> = {}
-        const chartData = SIZE_CHART[selectedSize]
-
-        measurementsConfig.forEach(config => {
-            const bodyVal = userMeasurements[config.key]
-            let refVal: [number, number] | number | null = null
-
-            if (chartData && chartData[config.key]) {
-                refVal = chartData[config.key]
-            } else if (config.defaultRef) {
-                refVal = config.defaultRef
-            }
-
-            statuses[config.key] = calculateStatus(bodyVal, refVal)
-        })
-
-        return statuses
-    }, [selectedSize, userMeasurements])
-
     // Calculate recommended size based on multiple measurements (chest, waist, hips)
     // Uses weighted scoring: chest (50%), waist (25%), hips (25%)
     const recommendedSize = useMemo(() => {
@@ -197,7 +176,7 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
         const waistVal = userMeasurements.waist
         const hipsVal = userMeasurements.hips
 
-        if (!chestVal) return null
+        if (!chestVal) return 'M'
 
         // Calculate score for each size (lower score = better fit)
         const sizeScores: { size: string; score: number; fits: number }[] = []
@@ -251,8 +230,36 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
             return a.score - b.score
         })
 
-        return sizeScores[0]?.size || '4XL+'
+        return sizeScores[0]?.size || 'M'
     }, [userMeasurements.chest, userMeasurements.waist, userMeasurements.hips])
+
+    // Update selectedSize when recommendedSize is calculated
+    useEffect(() => {
+        if (recommendedSize) {
+            setSize(recommendedSize)
+        }
+    }, [recommendedSize])
+
+    // Calculate fit status for each measurement
+    const fitStatuses = useMemo(() => {
+        const statuses: Record<string, FitStatus> = {}
+        const chartData = SIZE_CHART[selectedSize]
+
+        measurementsConfig.forEach(config => {
+            const bodyVal = userMeasurements[config.key]
+            let refVal: [number, number] | number | null = null
+
+            if (chartData && chartData[config.key]) {
+                refVal = chartData[config.key]
+            } else if (config.defaultRef) {
+                refVal = config.defaultRef
+            }
+
+            statuses[config.key] = calculateStatus(bodyVal, refVal)
+        })
+
+        return statuses
+    }, [selectedSize, userMeasurements])
 
     // Get color for body part
     const getBodyPartColor = (regionId: string): string => {
@@ -288,35 +295,29 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
 
     return (
         <MotionFade>
-            <div className="fit-check-container">
+            <div className="fixed inset-0 bg-white text-slate-900 z-50 overflow-y-auto">
                 {/* Back Button */}
                 <button
-                    className="fit-back-btn"
+                    className="absolute top-4 left-4 z-50 p-2 rounded-full hover:bg-slate-100 transition-colors"
                     onClick={handleBack}
                     aria-label="Go Back"
                 >
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="15 18 9 12 15 6" />
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                     </svg>
                 </button>
 
-                <div className="fit-content">
+                <div className="max-w-4xl mx-auto px-6 py-8 pb-24">
                     {/* Header */}
-                    <header className="fit-header">
-                        <h1 className="fit-title">Your Body Measurements</h1>
-                        <p className="fit-subtitle">Select a reference size to check your fit</p>
-                        {recommendedSize && (
-                            <div className="fit-recommendation">
-                                Based on your measurements, Size {recommendedSize} suits you best.
-                            </div>
-                        )}
+                    <header className="text-center mb-8 pt-12">
+                        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2">Your Body Measurements</h1>
+                        <p className="text-sm text-slate-600">Select a reference size to check your fit</p>
                     </header>
 
-                    {/* Main Content */}
-                    <div className="fit-main">
-                        <div className="fit-heatmap-panel">
-                            {/* Measurements Panel (Collapsible) */}
-                            <div className={`fit-measurements-panel ${isPanelOpen ? '' : 'collapsed'}`}>
+                    {/* Main Content Container */}
+                    <div className="relative">
+                        {/* Measurements Panel (Collapsible from Left) */}
+                        <div className={`fit-measurements-panel ${isPanelOpen ? '' : 'collapsed'}`}>
                                 <div className="fit-panel-header">
                                     <span className="fit-panel-title">MEASUREMENTS</span>
                                 </div>
@@ -362,23 +363,25 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
                                 })}
                             </div>
 
-                            {/* Panel Toggle */}
-                            <button
-                                className={`fit-panel-toggle ${isPanelOpen ? '' : 'collapsed'}`}
-                                onClick={() => setIsPanelOpen(!isPanelOpen)}
-                                aria-label="Toggle Measurements"
-                            >
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className={`fit-toggle-icon ${isPanelOpen ? 'open' : ''}`}>
-                                    <path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                                </svg>
-                                <span className="fit-toggle-label">MEASUREMENTS</span>
-                            </button>
+                        {/* Panel Toggle */}
+                        <button
+                            className={`fit-panel-toggle ${isPanelOpen ? '' : 'collapsed'}`}
+                            onClick={() => setIsPanelOpen(!isPanelOpen)}
+                            aria-label="Toggle Measurements"
+                        >
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className={`fit-toggle-icon ${isPanelOpen ? 'open' : ''}`}>
+                                <path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                            <span className="fit-toggle-label">MEASUREMENTS</span>
+                        </button>
 
-                            {/* Heatmap SVG */}
-                            <div className="fit-heatmap-content">
-                                <svg className="fit-body-svg" viewBox="0 0 200 600" xmlns="http://www.w3.org/2000/svg">
+                        {/* Content Card */}
+                        <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-lg">
+                            {/* Heatmap Skeleton - Top Center */}
+                            <div className="flex flex-col items-center justify-center mb-8">
+                                <svg className="fit-body-svg" viewBox="0 0 200 600" xmlns="http://www.w3.org/2000/svg" style={{ maxHeight: '400px', width: '100%' }}>
                                     {/* Head */}
-                                    <circle cx="100" cy="50" r="30" className="fit-body-part" id="head" fill="#333" />
+                                    <circle cx="100" cy="50" r="30" className="fit-body-part" id="head" fill="#e2e8f0" />
 
                                     {/* Neck */}
                                     <rect
@@ -387,7 +390,7 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
                                         id="neck"
                                         rx="5"
                                         fill={getBodyPartColor('neck')}
-                                        style={{ filter: hoveredRegion === 'neck' ? 'brightness(1.5)' : 'none' }}
+                                        style={{ filter: hoveredRegion === 'neck' ? 'brightness(1.2)' : 'none' }}
                                     />
 
                                     {/* Chest */}
@@ -396,7 +399,7 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
                                         className="fit-body-part"
                                         id="chest"
                                         fill={getBodyPartColor('chest')}
-                                        style={{ filter: hoveredRegion === 'chest' ? 'brightness(1.5)' : 'none' }}
+                                        style={{ filter: hoveredRegion === 'chest' ? 'brightness(1.2)' : 'none' }}
                                     />
 
                                     {/* Waist */}
@@ -404,8 +407,9 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
                                         x="70" y="180" width="60" height="40"
                                         className="fit-body-part"
                                         id="waist"
+                                        rx="5"
                                         fill={getBodyPartColor('waist')}
-                                        style={{ filter: hoveredRegion === 'waist' ? 'brightness(1.5)' : 'none' }}
+                                        style={{ filter: hoveredRegion === 'waist' ? 'brightness(1.2)' : 'none' }}
                                     />
 
                                     {/* Hips */}
@@ -414,7 +418,7 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
                                         className="fit-body-part"
                                         id="hips"
                                         fill={getBodyPartColor('hips')}
-                                        style={{ filter: hoveredRegion === 'hips' ? 'brightness(1.5)' : 'none' }}
+                                        style={{ filter: hoveredRegion === 'hips' ? 'brightness(1.2)' : 'none' }}
                                     />
 
                                     {/* Arms Upper */}
@@ -424,7 +428,7 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
                                         id="l-arm-upper"
                                         rx="10"
                                         fill={getBodyPartColor('l-arm-upper')}
-                                        style={{ filter: hoveredRegion === 'l-arm-upper' ? 'brightness(1.5)' : 'none' }}
+                                        style={{ filter: hoveredRegion === 'l-arm-upper' ? 'brightness(1.2)' : 'none' }}
                                     />
                                     <rect
                                         x="145" y="110" width="25" height="80"
@@ -432,12 +436,12 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
                                         id="r-arm-upper"
                                         rx="10"
                                         fill={getBodyPartColor('r-arm-upper')}
-                                        style={{ filter: hoveredRegion === 'r-arm-upper' ? 'brightness(1.5)' : 'none' }}
+                                        style={{ filter: hoveredRegion === 'r-arm-upper' ? 'brightness(1.2)' : 'none' }}
                                     />
 
                                     {/* Arms Lower */}
-                                    <rect x="30" y="195" width="25" height="70" className="fit-body-part" id="l-arm-lower" rx="10" fill="#333" />
-                                    <rect x="145" y="195" width="25" height="70" className="fit-body-part" id="r-arm-lower" rx="10" fill="#333" />
+                                    <rect x="30" y="195" width="25" height="70" className="fit-body-part" id="l-arm-lower" rx="10" fill="#e2e8f0" />
+                                    <rect x="145" y="195" width="25" height="70" className="fit-body-part" id="r-arm-lower" rx="10" fill="#e2e8f0" />
 
                                     {/* Thighs */}
                                     <path
@@ -445,14 +449,14 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
                                         className="fit-body-part"
                                         id="l-thigh"
                                         fill={getBodyPartColor('l-thigh')}
-                                        style={{ filter: hoveredRegion === 'l-thigh' ? 'brightness(1.5)' : 'none' }}
+                                        style={{ filter: hoveredRegion === 'l-thigh' ? 'brightness(1.2)' : 'none' }}
                                     />
                                     <path
                                         d="M 105 280 L 140 280 L 135 400 L 110 400 Z"
                                         className="fit-body-part"
                                         id="r-thigh"
                                         fill={getBodyPartColor('r-thigh')}
-                                        style={{ filter: hoveredRegion === 'r-thigh' ? 'brightness(1.5)' : 'none' }}
+                                        style={{ filter: hoveredRegion === 'r-thigh' ? 'brightness(1.2)' : 'none' }}
                                     />
 
                                     {/* Calves */}
@@ -461,50 +465,75 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
                                         className="fit-body-part"
                                         id="l-calf"
                                         rx="5"
-                                        fill="#333"
+                                        fill="#e2e8f0"
                                     />
                                     <rect
                                         x="110" y="405" width="25" height="90"
                                         className="fit-body-part"
                                         id="r-calf"
                                         rx="5"
-                                        fill="#333"
+                                        fill="#e2e8f0"
                                     />
                                 </svg>
-
-                                {/* Legend */}
-                                <div className="fit-legend">
-                                    <div className="fit-legend-item"><span className="fit-dot v-tight" /> V.Tight</div>
-                                    <div className="fit-legend-item"><span className="fit-dot tight" /> Tight</div>
-                                    <div className="fit-legend-item"><span className="fit-dot snug" /> Snug</div>
-                                    <div className="fit-legend-item"><span className="fit-dot good" /> Perfect</div>
-                                    <div className="fit-legend-item"><span className="fit-dot relaxed" /> Relaxed</div>
-                                    <div className="fit-legend-item"><span className="fit-dot loose" /> Loose</div>
-                                    <div className="fit-legend-item"><span className="fit-dot v-loose" /> V.Loose</div>
-                                </div>
                             </div>
 
-                            {/* Size Selector */}
-                            <div className="fit-size-selector">
-                                <span className="fit-size-label">Try alternate sizes</span>
-                                <div className="fit-size-options">
+                            {/* Recommended Size - Below Heatmap */}
+                            {recommendedSize && (
+                                <div className="flex flex-col items-center mb-6">
+                                    <span className="text-sm font-semibold uppercase text-slate-500 tracking-wide mb-3">Recommended size</span>
+                                    <button
+                                        className="px-8 py-4 bg-slate-900 text-white rounded-xl text-2xl font-bold shadow-lg hover:bg-slate-800 transition-colors"
+                                        onClick={() => setSize(recommendedSize)}
+                                    >
+                                        {recommendedSize}
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* Size Toggle Buttons - Below Recommended Size */}
+                            <div className="flex flex-col items-center mb-8">
+                                <div className="flex flex-wrap gap-2 justify-center mb-2">
                                     {Object.keys(SIZE_CHART).map(size => (
                                         <button
                                             key={size}
-                                            className={`fit-size-btn ${size === selectedSize ? 'active' : ''}`}
+                                            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                                                size === selectedSize
+                                                    ? 'bg-slate-900 text-white border-2 border-slate-900'
+                                                    : 'bg-white text-slate-900 border-2 border-slate-200 hover:border-slate-300'
+                                            }`}
                                             onClick={() => setSize(size)}
                                         >
                                             {size}
                                         </button>
                                     ))}
                                 </div>
+                                <p className="text-xs text-slate-500 mt-2">Try other sizes to see how the fit changes</p>
+                            </div>
+
+                            {/* Color Reference Gradient Bar - At Bottom */}
+                            <div className="bg-slate-50 border border-slate-200 rounded-xl p-6">
+                                <div className="relative h-12 rounded-lg overflow-hidden mb-3" style={{
+                                    background: 'linear-gradient(to right, #cc0000 0%, #ff4d4d 14%, #ffad33 28%, #4dff4d 42%, #33e6ff 57%, #4da6ff 71%, #0040ff 100%)'
+                                }}>
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                        <div className="w-3 h-3 rounded-full bg-white border-2 border-slate-900 shadow-lg"></div>
+                                    </div>
+                                </div>
+                                <div className="flex justify-between text-xs font-medium text-slate-600">
+                                    <span>Too tight</span>
+                                    <span>Perfect fit</span>
+                                    <span>Very Loose</span>
+                                </div>
                             </div>
                         </div>
                     </div>
 
                     {/* Done Button */}
-                    <div className="fit-actions">
-                        <button className="fit-proceed-btn" onClick={handleDone}>
+                    <div className="flex justify-center mt-8">
+                        <button
+                            className="px-8 py-4 bg-slate-900 text-white rounded-xl text-lg font-bold shadow-lg hover:bg-black transition-colors flex items-center gap-2"
+                            onClick={handleDone}
+                        >
                             Done
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <polyline points="20 6 9 17 4 12" />

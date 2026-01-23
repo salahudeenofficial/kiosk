@@ -41,13 +41,8 @@ const AppLayout = () => {
     const currentPath = location.pathname
 
     // Pages that don't need a session
-    const publicPages = ['/', '/config']
+    const publicPages = ['/', '/config', '/fit-check']
     if (publicPages.includes(currentPath)) {
-      return
-    }
-
-    // Allow fit-check in mock mode without session (for testing)
-    if (currentPath === '/fit-check' && unifiedKioskApi.isMockMode()) {
       return
     }
 

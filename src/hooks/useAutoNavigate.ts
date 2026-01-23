@@ -13,13 +13,8 @@ const useAutoNavigate = () => {
   useEffect(() => {
     const path = location.pathname
 
-    // Don't auto-navigate if we're on the idle screen
-    if (path === '/') {
-      return
-    }
-
-    // Allow fit-check in mock mode without gender (for testing)
-    if (path === '/fit-check' && unifiedKioskApi.isMockMode()) {
+    // Don't auto-navigate if we're on the idle screen or fit-check
+    if (path === '/' || path === '/fit-check') {
       return
     }
 
