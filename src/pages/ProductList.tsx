@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import LoadingPulse from '../components/UI/LoadingPulse'
@@ -12,6 +12,7 @@ import { useKioskStore } from '../store/kioskStore'
 import { productApi, type ProductListItem } from '../utils/productApi'
 import { unifiedKioskApi } from '../utils/unifiedKioskApi'
 import { MOCK_CONFIG } from '../utils/mockKioskApi'
+import type { CatalogFilterBrand, CatalogFilterCategory } from '../utils/kioskApi'
 
 // Skeleton Card Component - Responsive fixed height matching ProductCard
 const SkeletonCard = () => (
@@ -58,6 +59,12 @@ const ProductList = () => {
     sort_order: 'desc',
   })
   const [filtersDrawerOpen, setFiltersDrawerOpen] = useState(false)
+
+  // Filter options from backend
+  const [availableCategories, setAvailableCategories] = useState<CatalogFilterCategory[]>([])
+  const [availableBrands, setAvailableBrands] = useState<CatalogFilterBrand[]>([])
+  const [priceRange, setPriceRange] = useState<{ min: number; max: number } | null>(null)
+  const [filtersLoading, setFiltersLoading] = useState(false)
 
   // Infinite scroll & Scroll persistence
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -115,19 +122,20 @@ const ProductList = () => {
     try {
       let newProducts: ProductListItem[]
 
-      // Use unified API for mock mode, productApi for real backend
-      if (MOCK_CONFIG.ENABLED) {
-        const catalogResponse = await unifiedKioskApi.loadCatalog({
-          limit,
-          offset,
-          gender: genderFilter,
-          categoryId: filters.category_id,
-          search: search || undefined,
-          min_price: filters.min_price,
-          max_price: filters.max_price,
-          sort_by: sortOption.sort_by,
-          sort_order: sortOption.sort_order,
-        })
+        // Use unified API for mock mode, productApi for real backend
+        if (MOCK_CONFIG.ENABLED) {
+          const catalogResponse = await unifiedKioskApi.loadCatalog({
+            limit,
+            offset,
+            gender: genderFilter,
+            categoryId: filters.category_id,
+            search: search || undefined,
+            brand_id: filters.brand_id,
+            min_price: filters.min_price,
+            max_price: filters.max_price,
+            sort_by: sortOption.sort_by,
+            sort_order: sortOption.sort_order,
+          })
         // Convert catalog products to ProductListItem format
         // Cast to any to add missing fields with defaults
         newProducts = catalogResponse.products.map(p => ({
@@ -209,6 +217,37 @@ const ProductList = () => {
     return () => observer.disconnect()
   }, [hasMore, loading, handleLoadMore])
 
+  // Fetch available filters from backend
+  useEffect(() => {
+    const fetchFilters = async () => {
+      setFiltersLoading(true)
+      try {
+        const genderFilter =
+          filters.gender ||
+          (userGender === 'male' ? 'Men' : userGender === 'female' ? 'Women' : undefined)
+
+        const filtersResponse = await unifiedKioskApi.getCatalogFilters({
+          gender: genderFilter,
+          search: search || undefined,
+        })
+
+        setAvailableCategories(filtersResponse.categories)
+        setAvailableBrands(filtersResponse.brands)
+        setPriceRange(filtersResponse.price_range)
+      } catch (err) {
+        console.error('Error loading filters', err)
+        // Don't show error to user, just use empty arrays
+        setAvailableCategories([])
+        setAvailableBrands([])
+        setPriceRange(null)
+      } finally {
+        setFiltersLoading(false)
+      }
+    }
+
+    fetchFilters()
+  }, [userGender, filters.gender, search])
+
   // Reset and load first page when filters/search/sort change
   useEffect(() => {
     setProducts([])
@@ -252,6 +291,7 @@ const ProductList = () => {
             gender: genderFilter,
             categoryId: filters.category_id,
             search: search || undefined,
+            brand_id: filters.brand_id,
             min_price: filters.min_price,
             max_price: filters.max_price,
             sort_by: sortOption.sort_by,
@@ -400,13 +440,23 @@ const ProductList = () => {
             </div>
 
             {/* Active Filters */}
-            {(userGender || filters.gender || filters.min_price || filters.max_price) && (
+            {(userGender || filters.gender || filters.category_id || filters.brand_id || filters.min_price || filters.max_price) && (
               <div className="flex items-center gap-[2%] flex-wrap mb-4">
                 <span className="text-sm text-slate-600">Active filters:</span>
                 {(filters.gender || userGender) && (
                   <span className="px-[2%] py-[1%] bg-slate-100 text-slate-700 rounded-lg text-xs">
                     {filters.gender ||
                       (userGender === 'male' ? 'Men' : userGender === 'female' ? 'Women' : '')}
+                  </span>
+                )}
+                {filters.category_id && (
+                  <span className="px-[2%] py-[1%] bg-slate-100 text-slate-700 rounded-lg text-xs">
+                    {availableCategories.find((c) => c.id === filters.category_id)?.name || 'Category'}
+                  </span>
+                )}
+                {filters.brand_id && (
+                  <span className="px-[2%] py-[1%] bg-slate-100 text-slate-700 rounded-lg text-xs">
+                    {availableBrands.find((b) => b.id === filters.brand_id)?.name || 'Brand'}
                   </span>
                 )}
                 {(filters.min_price || filters.max_price) && (
@@ -599,6 +649,10 @@ const ProductList = () => {
         onClose={() => setFiltersDrawerOpen(false)}
         filters={filters}
         onFiltersChange={setFilters}
+        categories={availableCategories}
+        brands={availableBrands}
+        priceRange={priceRange}
+        filtersLoading={filtersLoading}
         onApply={() => {
           setFiltersDrawerOpen(false)
         }}

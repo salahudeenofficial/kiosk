@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Button from './UI/Button'
 
 export type Filters = {
@@ -9,6 +9,17 @@ export type Filters = {
   max_price?: number
 }
 
+type Category = {
+  id: number
+  name: string
+  gender: string
+}
+
+type Brand = {
+  id: number
+  name: string
+}
+
 type FiltersDrawerProps = {
   isOpen: boolean
   onClose: () => void
@@ -16,6 +27,10 @@ type FiltersDrawerProps = {
   onFiltersChange: (filters: Filters) => void
   onApply: () => void
   onReset: () => void
+  categories?: Category[]
+  brands?: Brand[]
+  priceRange?: { min: number; max: number } | null
+  filtersLoading?: boolean
 }
 
 const FiltersDrawer = ({
@@ -25,8 +40,16 @@ const FiltersDrawer = ({
   onFiltersChange,
   onApply,
   onReset,
+  categories = [],
+  brands = [],
+  priceRange = null,
+  filtersLoading = false,
 }: FiltersDrawerProps) => {
   const [localFilters, setLocalFilters] = useState<Filters>(filters)
+
+  useEffect(() => {
+    if (isOpen) setLocalFilters(filters)
+  }, [isOpen, filters])
 
   const handleFilterChange = (key: keyof Filters, value: string | number | undefined) => {
     setLocalFilters((prev) => ({
@@ -94,15 +117,84 @@ const FiltersDrawer = ({
               </div>
             </div>
 
+            {/* Category Filter */}
+            <div>
+              <label className="text-sm font-semibold text-slate-900 mb-[2%] block">
+                Category
+              </label>
+              <select
+                disabled={filtersLoading || categories.length === 0}
+                value={localFilters.category_id || ''}
+                onChange={(e) =>
+                  handleFilterChange(
+                    'category_id',
+                    e.target.value ? parseInt(e.target.value, 10) : undefined,
+                  )
+                }
+                className="w-full p-3 border-2 border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:border-slate-500 bg-white disabled:bg-slate-50 disabled:text-slate-400"
+              >
+                <option value="">
+                  {filtersLoading
+                    ? 'Loading categories...'
+                    : categories.length > 0
+                      ? 'All Categories'
+                      : 'No categories available'}
+                </option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Brand Filter */}
+            <div>
+              <label className="text-sm font-semibold text-slate-900 mb-[2%] block">
+                Brand
+              </label>
+              <select
+                disabled={filtersLoading || brands.length === 0}
+                value={localFilters.brand_id || ''}
+                onChange={(e) =>
+                  handleFilterChange(
+                    'brand_id',
+                    e.target.value ? parseInt(e.target.value, 10) : undefined,
+                  )
+                }
+                className="w-full p-3 border-2 border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:border-slate-500 bg-white disabled:bg-slate-50 disabled:text-slate-400"
+              >
+                <option value="">
+                  {filtersLoading
+                    ? 'Loading brands...'
+                    : brands.length > 0
+                      ? 'All Brands'
+                      : 'No brands available'}
+                </option>
+                {brands.map((brand) => (
+                  <option key={brand.id} value={brand.id}>
+                    {brand.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             {/* Price Filter */}
             <div>
               <label className="text-sm font-semibold text-slate-900 mb-[2%] block">
                 Price Range
+                {priceRange && (
+                  <span className="text-xs font-normal text-slate-500 ml-2">
+                    (₹{priceRange.min.toLocaleString()} - ₹{priceRange.max.toLocaleString()})
+                  </span>
+                )}
               </label>
               <div className="flex gap-4">
                 <input
                   type="number"
-                  placeholder="Min"
+                  placeholder={priceRange ? `Min (₹${priceRange.min.toLocaleString()})` : 'Min'}
+                  min={priceRange?.min}
+                  max={priceRange?.max}
                   value={localFilters.min_price || ''}
                   onChange={(e) =>
                     handleFilterChange(
@@ -114,7 +206,9 @@ const FiltersDrawer = ({
                 />
                 <input
                   type="number"
-                  placeholder="Max"
+                  placeholder={priceRange ? `Max (₹${priceRange.max.toLocaleString()})` : 'Max'}
+                  min={priceRange?.min}
+                  max={priceRange?.max}
                   value={localFilters.max_price || ''}
                   onChange={(e) =>
                     handleFilterChange(

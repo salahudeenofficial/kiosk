@@ -5,7 +5,7 @@
  * without changing the code in individual components.
  */
 
-import { kioskApi, type VtonResultEvent, type VtonErrorEvent } from './kioskApi'
+import { kioskApi, type VtonResultEvent, type VtonErrorEvent, type CatalogFiltersResponse } from './kioskApi'
 import { productApi, type ProductDetails } from './productApi'
 import { mockKioskApi, MOCK_CONFIG } from './mockKioskApi'
 import type { KioskSession, KioskConfig } from './config'
@@ -101,6 +101,63 @@ export const unifiedKioskApi = {
             return mockKioskApi.uploadImage(blob)
         }
         return kioskApi.uploadImageFromDataUrl(dataUrl)
+    },
+
+    // Catalog Filters
+    async getCatalogFilters(filters: {
+        gender?: string
+        search?: string
+    } = {}): Promise<CatalogFiltersResponse> {
+        console.log(`[UnifiedAPI] getCatalogFilters - mode: ${shouldUseMock() ? 'MOCK' : 'REAL'}`)
+
+        if (shouldUseMock()) {
+            // For mock, extract from mock products
+            const { MOCK_PRODUCTS, CATEGORIES, BRANDS } = await import('./mockKioskApi')
+            let filteredCategories = [...CATEGORIES]
+            let filteredBrands = [...BRANDS]
+            let filteredProducts = [...MOCK_PRODUCTS]
+
+            if (filters.gender) {
+                filteredProducts = filteredProducts.filter(p => p.category.gender === filters.gender)
+                filteredCategories = filteredCategories.filter(c => c.gender === filters.gender)
+            }
+
+            if (filters.search) {
+                const searchLower = filters.search.toLowerCase()
+                filteredProducts = filteredProducts.filter(p =>
+                    p.name.toLowerCase().includes(searchLower) ||
+                    p.brand.name.toLowerCase().includes(searchLower)
+                )
+            }
+
+            // Get unique brands and categories from filtered products
+            const brandMap = new Map<number, { id: number; name: string }>()
+            const categoryMap = new Map<number, { id: number; name: string; gender: string }>()
+
+            filteredProducts.forEach(p => {
+                if (p.brand && !brandMap.has(p.brand.id)) {
+                    brandMap.set(p.brand.id, p.brand)
+                }
+                if (p.category && !categoryMap.has(p.category.id)) {
+                    categoryMap.set(p.category.id, p.category)
+                }
+            })
+
+            // Calculate price range from filtered products
+            const prices = filteredProducts.map(p => p.mrp).filter(p => p > 0)
+            const minPrice = prices.length > 0 ? Math.min(...prices) : 0
+            const maxPrice = prices.length > 0 ? Math.max(...prices) : 0
+
+            return {
+                brands: Array.from(brandMap.values()).sort((a, b) => a.name.localeCompare(b.name)),
+                categories: Array.from(categoryMap.values()).sort((a, b) => a.name.localeCompare(b.name)),
+                price_range: {
+                    min: minPrice,
+                    max: maxPrice,
+                },
+            }
+        }
+        return kioskApi.getCatalogFilters(filters)
     },
 
     // Catalog

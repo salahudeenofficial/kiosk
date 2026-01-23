@@ -22,6 +22,7 @@ export const API_CONFIG = {
 
     // Catalog
     KIOSK_CATALOG: '/api/kiosk/catalog',
+    KIOSK_CATALOG_FILTERS: '/api/kiosk/catalog/filters',
 
     // Legacy endpoints (kept for compatibility during transition)
     VALIDATE_IMAGE: '/api/validate-image',

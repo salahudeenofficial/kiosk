@@ -88,6 +88,27 @@ type CatalogResponse = {
     }
 }
 
+// Catalog filters types
+export type CatalogFilterBrand = {
+    id: number
+    name: string
+}
+
+export type CatalogFilterCategory = {
+    id: number
+    name: string
+    gender: string
+}
+
+export type CatalogFiltersResponse = {
+    brands: CatalogFilterBrand[]
+    categories: CatalogFilterCategory[]
+    price_range: {
+        min: number
+        max: number
+    }
+}
+
 // VTON job types
 export type VtonJob = {
     job_id: string
@@ -394,6 +415,42 @@ export const kioskApi = {
     },
 
     /**
+     * Get available catalog filters (brands, categories, price range)
+     */
+    async getCatalogFilters(filters: {
+        gender?: string
+        search?: string
+    } = {}): Promise<CatalogFiltersResponse> {
+        const params = new URLSearchParams()
+        if (filters.gender) params.append('gender', filters.gender)
+        if (filters.search) params.append('search', filters.search)
+
+        const url = `${getApiUrl(API_CONFIG.ENDPOINTS.KIOSK_CATALOG_FILTERS)}?${params}`
+
+        try {
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    ...getSessionHeaders(),
+                },
+                credentials: 'include',
+                signal: AbortSignal.timeout(API_CONFIG.TIMEOUT),
+            })
+
+            const data: ApiResponse<CatalogFiltersResponse> = await response.json()
+
+            if (!response.ok || !data.success || !data.data) {
+                throw new Error(data.error?.message || `Catalog filters load failed: ${response.status}`)
+            }
+
+            return data.data
+        } catch (error) {
+            console.error('Catalog filters load error:', error)
+            throw error
+        }
+    },
+
+    /**
      * Load catalog
      */
     async loadCatalog(filters: {
@@ -402,6 +459,11 @@ export const kioskApi = {
         categoryId?: number
         gender?: string
         search?: string
+        brand_id?: number
+        min_price?: number
+        max_price?: number
+        sort_by?: string
+        sort_order?: 'asc' | 'desc'
     } = {}): Promise<CatalogResponse> {
         const params = new URLSearchParams()
         params.append('limit', String(filters.limit || 50))
@@ -409,6 +471,11 @@ export const kioskApi = {
         if (filters.categoryId) params.append('category_id', String(filters.categoryId))
         if (filters.gender) params.append('gender', filters.gender)
         if (filters.search) params.append('search', filters.search)
+        if (filters.brand_id !== undefined) params.append('brand_id', String(filters.brand_id))
+        if (filters.min_price !== undefined) params.append('min_price', String(filters.min_price))
+        if (filters.max_price !== undefined) params.append('max_price', String(filters.max_price))
+        if (filters.sort_by) params.append('sort_by', filters.sort_by)
+        if (filters.sort_order) params.append('sort_order', filters.sort_order)
 
         const url = `${getApiUrl(API_CONFIG.ENDPOINTS.KIOSK_CATALOG)}?${params}`
 
