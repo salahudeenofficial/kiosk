@@ -1,5 +1,10 @@
 /* FitCheckScreen Styles - Updated for white background design */
 
+/* Technical heading font – pairs with Open Sans, fits measurement/data UI */
+.fit-check-heading {
+  font-family: 'IBM Plex Mono', 'SF Mono', 'Monaco', 'Consolas', monospace;
+}
+
 /* Body SVG Styling */
 .fit-body-svg {
   width: 100%;

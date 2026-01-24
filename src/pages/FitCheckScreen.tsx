@@ -261,6 +261,17 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
         return statuses
     }, [selectedSize, userMeasurements])
 
+    // Reference bar dot position: smaller size → red (left), larger size → blue (right), recommended = center
+    const SIZE_ORDER = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL']
+    const referenceDotPosition = useMemo(() => {
+        const recIdx = SIZE_ORDER.indexOf(recommendedSize)
+        const selIdx = SIZE_ORDER.indexOf(selectedSize)
+        if (recIdx < 0 || selIdx < 0) return 50
+        const diff = selIdx - recIdx
+        const position = 50 + diff * (50 / 7)
+        return Math.max(8, Math.min(92, position))
+    }, [selectedSize, recommendedSize])
+
     // Get color for body part
     const getBodyPartColor = (regionId: string): string => {
         const config = measurementsConfig.find(c => {
@@ -310,8 +321,12 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
                 <div className="max-w-4xl mx-auto px-6 py-8 pb-24">
                     {/* Header */}
                     <header className="text-center mb-8 pt-12">
-                        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2">Your Body Measurements</h1>
-                        <p className="text-sm text-slate-600">Select a reference size to check your fit</p>
+                        <h1 className="fit-check-heading text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight pb-3 border-b-2 border-slate-200 inline-block mx-auto mb-4">
+                            Fit Check
+                        </h1>
+                        <p className="text-base text-slate-600 max-w-md mx-auto leading-relaxed">
+                            Personal fit recommendation based on your measurements
+                        </p>
                     </header>
 
                     {/* Main Content Container */}
@@ -512,17 +527,20 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
 
                             {/* Color Reference Gradient Bar - At Bottom */}
                             <div className="bg-slate-50 border border-slate-200 rounded-xl p-6">
-                                <div className="relative h-12 rounded-lg overflow-hidden mb-3" style={{
+                                <div className="relative h-8 rounded-lg overflow-hidden mb-3" style={{
                                     background: 'linear-gradient(to right, #cc0000 0%, #ff4d4d 14%, #ffad33 28%, #4dff4d 42%, #33e6ff 57%, #4da6ff 71%, #0040ff 100%)'
                                 }}>
-                                    <div className="absolute inset-0 flex items-center justify-center">
-                                        <div className="w-3 h-3 rounded-full bg-white border-2 border-slate-900 shadow-lg"></div>
-                                    </div>
+                                    <div
+                                        className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-white border-2 border-slate-900 shadow-lg transition-all duration-300 ease-out"
+                                        style={{ left: `${referenceDotPosition}%` }}
+                                        role="img"
+                                        aria-label="Fit indicator"
+                                    />
                                 </div>
                                 <div className="flex justify-between text-xs font-medium text-slate-600">
                                     <span>Too tight</span>
                                     <span>Perfect fit</span>
-                                    <span>Very Loose</span>
+                                    <span>Very loose</span>
                                 </div>
                             </div>
                         </div>
