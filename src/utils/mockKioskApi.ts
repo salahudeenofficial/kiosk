@@ -81,7 +81,7 @@ const BRANDS = [
     { id: 8, name: 'Tommy Hilfiger' },
 ]
 
-// Categories
+// Categories (Men, Women, Unisex – all genders)
 const CATEGORIES = [
     { id: 1, name: 'Shirts', gender: 'Men' },
     { id: 2, name: 'T-Shirts', gender: 'Men' },
@@ -92,6 +92,8 @@ const CATEGORIES = [
     { id: 12, name: 'Tops', gender: 'Women' },
     { id: 13, name: 'Jeans', gender: 'Women' },
     { id: 14, name: 'Jackets', gender: 'Women' },
+    { id: 21, name: 'Activewear', gender: 'Unisex' },
+    { id: 22, name: 'Accessories', gender: 'Unisex' },
 ]
 
 // Colors

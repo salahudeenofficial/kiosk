@@ -217,17 +217,13 @@ const ProductList = () => {
     return () => observer.disconnect()
   }, [hasMore, loading, handleLoadMore])
 
-  // Fetch available filters from backend
+  // Fetch available filters from backend. Omit gender so we get all categories
+  // (Men, Women, Unisex). Product listing still filters by gender via loadCatalog.
   useEffect(() => {
     const fetchFilters = async () => {
       setFiltersLoading(true)
       try {
-        const genderFilter =
-          filters.gender ||
-          (userGender === 'male' ? 'Men' : userGender === 'female' ? 'Women' : undefined)
-
         const filtersResponse = await unifiedKioskApi.getCatalogFilters({
-          gender: genderFilter,
           search: search || undefined,
         })
 
@@ -236,7 +232,6 @@ const ProductList = () => {
         setPriceRange(filtersResponse.price_range)
       } catch (err) {
         console.error('Error loading filters', err)
-        // Don't show error to user, just use empty arrays
         setAvailableCategories([])
         setAvailableBrands([])
         setPriceRange(null)
@@ -246,7 +241,7 @@ const ProductList = () => {
     }
 
     fetchFilters()
-  }, [userGender, filters.gender, search])
+  }, [search])
 
   // Reset and load first page when filters/search/sort change
   useEffect(() => {
