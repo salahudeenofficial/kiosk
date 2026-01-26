@@ -27,7 +27,7 @@ export const MOCK_CONFIG = {
     VTON_DELAY_MS: 3000, // Time to "generate" a VTON result
 
     // Enable/disable mock mode
-    ENABLED: true,
+    ENABLED: false,
 }
 
 // ============================================================================
@@ -396,6 +396,7 @@ export const mockKioskApi = {
             age: null,
             height: null,
             imageUrl: null,
+            measurements: null,
         }
 
         console.log('[MockAPI] Session created:', mockSessionState)

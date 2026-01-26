@@ -47,7 +47,7 @@ const ValidationScreen = () => {
       // In mock mode, fetch measurements after upload
       if (MOCK_CONFIG.ENABLED || unifiedKioskApi.isMockMode()) {
         try {
-          const measurementsResult = await unifiedKioskApi.getUserMeasurements()
+          const measurementsResult = await unifiedKioskApi.getMeasurements()
           if (measurementsResult.status === 'success' && measurementsResult.measurements) {
             setUserMeasurements(measurementsResult.measurements)
           }

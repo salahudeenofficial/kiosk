@@ -22,21 +22,56 @@ const IdleScreen = () => {
   // Check fullscreen status
   useEffect(() => {
     const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement)
+      setIsFullscreen(
+        !!(
+          document.fullscreenElement ||
+          (document as any).webkitFullscreenElement ||
+          (document as any).mozFullScreenElement ||
+          (document as any).msFullscreenElement
+        )
+      )
     }
 
     document.addEventListener('fullscreenchange', handleFullscreenChange)
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange)
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange)
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange)
+    
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange)
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange)
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange)
+      document.removeEventListener('MSFullscreenChange', handleFullscreenChange)
+    }
   }, [])
 
   const toggleFullscreen = async () => {
     try {
       if (!document.fullscreenElement) {
-        await document.documentElement.requestFullscreen()
-        setIsFullscreen(true)
+        // Try different fullscreen methods for cross-browser compatibility
+        const elem = document.documentElement
+        if (elem.requestFullscreen) {
+          await elem.requestFullscreen()
+        } else if ((elem as any).webkitRequestFullscreen) {
+          // Safari
+          await (elem as any).webkitRequestFullscreen()
+        } else if ((elem as any).mozRequestFullScreen) {
+          // Firefox
+          await (elem as any).mozRequestFullScreen()
+        } else if ((elem as any).msRequestFullscreen) {
+          // IE/Edge
+          await (elem as any).msRequestFullscreen()
+        }
       } else {
-        await document.exitFullscreen()
-        setIsFullscreen(false)
+        if (document.exitFullscreen) {
+          await document.exitFullscreen()
+        } else if ((document as any).webkitExitFullscreen) {
+          await (document as any).webkitExitFullscreen()
+        } else if ((document as any).mozCancelFullScreen) {
+          await (document as any).mozCancelFullScreen()
+        } else if ((document as any).msExitFullscreen) {
+          await (document as any).msExitFullscreen()
+        }
       }
     } catch (err) {
       console.error('Error toggling fullscreen:', err)

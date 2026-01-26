@@ -19,6 +19,7 @@ export const API_CONFIG = {
     KIOSK_SESSION_IMAGE: '/api/kiosk/sessions', // + /{session_id}/image - POST
     KIOSK_SESSION_VTON: '/api/kiosk/sessions', // + /{session_id}/vton - POST
     KIOSK_SESSION_STREAM: '/api/kiosk/sessions', // + /{session_id}/stream - GET SSE
+    KIOSK_SESSION_MEASUREMENTS: '/api/kiosk/sessions', // + /{session_id}/measurements - GET
 
     // Catalog
     KIOSK_CATALOG: '/api/kiosk/catalog',

@@ -1,7 +1,6 @@
 import { useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useKioskStore } from '../store/kioskStore'
-import { unifiedKioskApi } from '../utils/unifiedKioskApi'
 
 const useAutoNavigate = () => {
   const navigate = useNavigate()

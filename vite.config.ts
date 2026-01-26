@@ -13,6 +13,9 @@ export default defineConfig({
       '.ngrok.io',
       '.ngrok.app'
     ],
+    hmr: {
+      clientPort: 443,
+    },
     proxy: {
       '/api': {
         target: 'http://35.154.214.159:8000',

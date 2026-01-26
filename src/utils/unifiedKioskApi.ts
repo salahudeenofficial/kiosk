@@ -111,7 +111,7 @@ export const unifiedKioskApi = {
         console.log(`[UnifiedAPI] getCatalogFilters - mode: ${shouldUseMock() ? 'MOCK' : 'REAL'}`)
 
         if (shouldUseMock()) {
-            const { MOCK_PRODUCTS, CATEGORIES, BRANDS } = await import('./mockKioskApi')
+            const { MOCK_PRODUCTS, CATEGORIES } = await import('./mockKioskApi')
             let filteredCategories = [...CATEGORIES]
             let filteredProducts = [...MOCK_PRODUCTS]
 
@@ -215,19 +215,43 @@ export const unifiedKioskApi = {
     },
 
     // Get user measurements
-    async getUserMeasurements(): Promise<{ status: string; measurements: Record<string, number> | null }> {
-        console.log(`[UnifiedAPI] getUserMeasurements - mode: ${shouldUseMock() ? 'MOCK' : 'REAL'}`)
+    async getMeasurements(): Promise<{ status: string; measurements: Record<string, number> | null }> {
+        console.log(`[UnifiedAPI] getMeasurements - mode: ${shouldUseMock() ? 'MOCK' : 'REAL'}`)
 
         if (shouldUseMock()) {
+            // Mock API already returns parsed measurements
             return mockKioskApi.getUserMeasurements()
         }
-        // For real API, use the api.ts function
-        const { api } = await import('./api')
-        const session = this.getSession()
-        if (!session) {
-            throw new Error('No active session')
+
+        // Real API returns CSV string
+        const response = await kioskApi.getMeasurements()
+
+        let parsedMeasurements: Record<string, number> | null = null
+        if (response.measurements) {
+            parsedMeasurements = {}
+            const lines = response.measurements.split('\n')
+            for (const line of lines) {
+                if (!line.trim()) continue
+
+                // Handle CSV line "key,value"
+                // Find last comma to separate value (in case key has commas, though unlikely)
+                const lastCommaIndex = line.lastIndexOf(',')
+                if (lastCommaIndex !== -1) {
+                    const key = line.substring(0, lastCommaIndex).trim()
+                    const valueStr = line.substring(lastCommaIndex + 1).trim()
+                    const value = parseFloat(valueStr)
+
+                    if (key && !isNaN(value)) {
+                        parsedMeasurements[key] = value
+                    }
+                }
+            }
         }
-        return api.getUserMeasurements(session.token)
+
+        return {
+            status: response.status,
+            measurements: parsedMeasurements
+        }
     },
 
     // Session completion

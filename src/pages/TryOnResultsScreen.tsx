@@ -4,6 +4,7 @@ import { Swiper, SwiperSlide } from 'swiper/react'
 import { Navigation, Pagination } from 'swiper/modules'
 import MotionFade from '../components/UI/MotionFade'
 import LoadingPulse from '../components/UI/LoadingPulse'
+import FitCheckScreen from './FitCheckScreen'
 import { useKioskStore } from '../store/kioskStore'
 import { unifiedKioskApi, type VtonResultEvent, type VtonErrorEvent } from '../utils/unifiedKioskApi'
 import useAutoNavigate from '../hooks/useAutoNavigate'
@@ -23,15 +24,51 @@ const TryOnResultsScreen = () => {
   const selectedProducts = useKioskStore((state) => state.selectedProducts)
   const setVtonResults = useKioskStore((state) => state.setVtonResults)
   const resetSession = useKioskStore((state) => state.resetSession)
+  const setUserMeasurements = useKioskStore((state) => state.setUserMeasurements)
+  const userMeasurements = useKioskStore((state) => state.userMeasurements)
 
   const [jobs, setJobs] = useState<VtonJob[]>([])
   const [error, setError] = useState<string | null>(null)
   const [isRequestingVton, setIsRequestingVton] = useState(true)
+  const [showFitCheck, setShowFitCheck] = useState(false)
 
   // Refs for cleanup
   const eventSourceRef = useRef<EventSource | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
   const hasInitiatedRef = useRef(false)
+
+  // Poll for measurements
+  useEffect(() => {
+    let pollingActive = true
+
+    const fetchMeasurements = async () => {
+      try {
+        const result = await unifiedKioskApi.getMeasurements()
+        if (result.status === 'success' && result.measurements) {
+          setUserMeasurements(result.measurements)
+          pollingActive = false // Stop polling once success
+        } else if (result.status === 'failed') {
+          pollingActive = false
+        }
+      } catch (e) {
+        // Ignore errors during polling (might be unauthorized if session ended, etc)
+        console.warn('Error fetching measurements:', e)
+      }
+    }
+
+    // Initial fetch
+    fetchMeasurements()
+
+    const interval = setInterval(() => {
+      if (pollingActive) {
+        fetchMeasurements()
+      } else {
+        clearInterval(interval)
+      }
+    }, 5000) // Poll every 5s
+
+    return () => clearInterval(interval)
+  }, [setUserMeasurements])
 
   // Main effect for VTON
   useEffect(() => {
@@ -253,8 +290,25 @@ const TryOnResultsScreen = () => {
   return (
     <div className="fixed inset-0 bg-black text-white overflow-hidden z-50 min-h-screen w-full">
       <MotionFade className="flex flex-col h-full w-full">
-        <div className="px-[4%] pt-[12%] pb-0 flex items-center justify-center">
+        <div className="px-[4%] pt-[12%] pb-0 flex items-center justify-center relative">
           <h2 className="text-clamp-title font-bold text-white text-center">Your Try-On Results</h2>
+
+          {/* Fit Check Button */}
+          {userMeasurements && (
+            <div className="absolute top-0 right-[4%] h-full flex items-center">
+              <button
+                onClick={() => setShowFitCheck(true)}
+                className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-full backdrop-blur-md flex items-center gap-2 border border-white/20 transition-all font-medium text-sm"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"></path>
+                  <line x1="16" y1="8" x2="2" y2="22"></line>
+                  <line x1="17.5" y1="15" x2="9" y2="15"></line>
+                </svg>
+                My Measurements
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="flex-1 flex items-start justify-center px-[4%] pb-[4%] pt-4">
@@ -326,6 +380,14 @@ const TryOnResultsScreen = () => {
           </button>
         </div>
       </MotionFade>
+
+      {/* Fit Check Overlay */}
+      {showFitCheck && (
+        <FitCheckScreen
+          isOverlay={true}
+          onClose={() => setShowFitCheck(false)}
+        />
+      )}
     </div>
   )
 }

@@ -3,10 +3,10 @@ set -e
 
 # Configuration - UPDATE THESE
 EC2_USER="ec2-user"
-EC2_HOST="13.127.97.207"  # Replace with your EC2 IP
-KEY_PATH="/home/fashionx/xapien.pem" # Replace with path to your .pem file
-REMOTE_PATH="/home/ec2-user/kiosk-frontend"
-BACKUP_PATH="/home/ec2-user/kiosk-frontend-backup"
+EC2_HOST="35.154.214.159"
+KEY_PATH="./xapien.pem"
+REMOTE_PATH="/var/www/kiosk-frontend"
+BACKUP_PATH="/var/www/kiosk-frontend-backup"
 
 echo "🔨 Building production bundle..."
 export VITE_API_BASE_URL=""  # Empty = use nginx proxy (same-origin, no CORS)

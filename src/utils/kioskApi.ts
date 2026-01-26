@@ -67,6 +67,12 @@ type ImageUploadResponse = {
     current_step: string
 }
 
+// Measurements response
+export type MeasurementsResponse = {
+    status: string // 'success' | 'processing' | 'failed' | 'not_started'
+    measurements: string | null // CSV string: "key,value\nkey2,value2"
+}
+
 // Catalog types
 export type CatalogProduct = {
     productId: number
@@ -498,6 +504,41 @@ export const kioskApi = {
             return data.data
         } catch (error) {
             console.error('Catalog load error:', error)
+            throw error
+        }
+    },
+
+    /**
+     * Get user measurements
+     */
+    async getMeasurements(): Promise<MeasurementsResponse> {
+        const session = getStoredSession()
+        if (!session) {
+            throw new Error('No active session')
+        }
+
+        const url = getApiUrl(`${API_CONFIG.ENDPOINTS.KIOSK_SESSION_MEASUREMENTS}/${session.sessionId}/measurements`)
+
+        try {
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    ...getSessionHeaders(),
+                },
+                credentials: 'include',
+                signal: AbortSignal.timeout(API_CONFIG.TIMEOUT),
+            })
+
+            const data: ApiResponse<MeasurementsResponse> = await response.json()
+
+            if (!response.ok || !data.success || !data.data) {
+                // Return data even if success=false if it contains status
+                throw new Error(data.error?.message || `Measurements load failed: ${response.status}`)
+            }
+
+            return data.data
+        } catch (error) {
+            console.error('Measurements load error:', error)
             throw error
         }
     },

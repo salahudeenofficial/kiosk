@@ -1,0 +1,51 @@
+KIOSK FRONTEND DEPLOYMENT GUIDE
+================================
+
+Prerequisites:
+- EC2 instance with port 7077 open
+- .pem key file in repo root
+- Git on main branch
+
+Deploy to New EC2 Instance:
+----------------------------
+1. Update deploy.sh with your EC2 details:
+   - EC2_HOST="your-ec2-ip"
+   - KEY_PATH="./your-key.pem"
+
+2. Update deployment/nginx.conf if needed (default: port 7077, /var/www/kiosk-frontend)
+
+3. Ensure .pem permissions:
+   chmod 400 your-key.pem
+
+4. Run deployment:
+   ./deploy.sh
+
+   First run will:
+   - Install nginx (if not present)
+   - Create /var/www/kiosk-frontend
+   - Build & deploy frontend
+   - Configure & reload nginx
+
+Redeploy After Changes:
+------------------------
+1. Commit changes to main branch
+2. Run: ./deploy.sh
+
+   Automatically:
+   - Builds production bundle
+   - Backs up current deployment
+   - Deploys new version
+   - Reloads nginx
+
+Rollback:
+---------
+Run: ./rollback.sh
+
+Restores previous deployment from /var/www/kiosk-frontend-backup
+
+Notes:
+------
+- Only main branch should be deployed to production
+- Backup is created automatically on each deploy
+- Site accessible at: http://YOUR-EC2-IP:7077
+- Backend API proxied to localhost:8000/api/
