@@ -122,20 +122,20 @@ const ProductList = () => {
     try {
       let newProducts: ProductListItem[]
 
-        // Use unified API for mock mode, productApi for real backend
-        if (MOCK_CONFIG.ENABLED) {
-          const catalogResponse = await unifiedKioskApi.loadCatalog({
-            limit,
-            offset,
-            gender: genderFilter,
-            categoryId: filters.category_id,
-            search: search || undefined,
-            brand_id: filters.brand_id,
-            min_price: filters.min_price,
-            max_price: filters.max_price,
-            sort_by: sortOption.sort_by,
-            sort_order: sortOption.sort_order,
-          })
+      // Use unified API for mock mode, productApi for real backend
+      if (MOCK_CONFIG.ENABLED) {
+        const catalogResponse = await unifiedKioskApi.loadCatalog({
+          limit,
+          offset,
+          gender: genderFilter,
+          categoryId: filters.category_id,
+          search: search || undefined,
+          brand_id: filters.brand_id,
+          min_price: filters.min_price,
+          max_price: filters.max_price,
+          sort_by: sortOption.sort_by,
+          sort_order: sortOption.sort_order,
+        })
         // Convert catalog products to ProductListItem format
         // Cast to any to add missing fields with defaults
         newProducts = catalogResponse.products.map(p => ({
@@ -394,8 +394,30 @@ const ProductList = () => {
     handleLoadMore()
   }
 
+  const handleEndSession = async () => {
+    try {
+      await unifiedKioskApi.completeSession()
+    } catch (err) {
+      console.error('Failed to complete session:', err)
+    }
+    useKioskStore.getState().resetSession()
+    navigate('/')
+  }
+
   return (
     <div className="fixed inset-0 bg-white text-slate-900 overflow-hidden z-50 min-h-screen w-full flex flex-col">
+      {/* End Session Button */}
+      <button
+        onClick={handleEndSession}
+        className="fixed top-6 right-6 z-[70] bg-white/80 hover:bg-white text-slate-500 hover:text-red-500 p-3 rounded-full shadow-lg backdrop-blur-md border border-slate-200 transition-all"
+        aria-label="End Session"
+      >
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
         <div className="flex flex-col gap-[3%] px-[4%] pt-[80px] pb-[120px] max-w-[1920px] mx-auto min-h-full">
           {/* Header */}

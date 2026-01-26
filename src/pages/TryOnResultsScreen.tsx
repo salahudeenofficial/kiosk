@@ -65,7 +65,7 @@ const TryOnResultsScreen = () => {
       } else {
         clearInterval(interval)
       }
-    }, 5000) // Poll every 5s
+    }, 3000) // Poll every 3s
 
     return () => clearInterval(interval)
   }, [setUserMeasurements])
@@ -293,9 +293,9 @@ const TryOnResultsScreen = () => {
         <div className="px-[4%] pt-[12%] pb-0 flex items-center justify-center relative">
           <h2 className="text-clamp-title font-bold text-white text-center">Your Try-On Results</h2>
 
-          {/* Fit Check Button */}
-          {userMeasurements && (
-            <div className="absolute top-0 right-[4%] h-full flex items-center">
+          <div className="absolute top-0 right-[4%] h-full flex items-center gap-3">
+            {/* Fit Check Button */}
+            {userMeasurements && (
               <button
                 onClick={() => setShowFitCheck(true)}
                 className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-full backdrop-blur-md flex items-center gap-2 border border-white/20 transition-all font-medium text-sm"
@@ -307,8 +307,20 @@ const TryOnResultsScreen = () => {
                 </svg>
                 My Measurements
               </button>
-            </div>
-          )}
+            )}
+
+            {/* End Session Button */}
+            <button
+              onClick={handleDone}
+              className="bg-white/10 hover:bg-red-500/20 text-white p-2 rounded-full backdrop-blur-md flex items-center justify-center border border-white/20 transition-all group"
+              aria-label="End Session"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="group-hover:text-red-400 transition-colors">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 flex items-start justify-center px-[4%] pb-[4%] pt-4">
