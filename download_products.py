@@ -7,7 +7,7 @@ import urllib.parse
 # Configuration
 # Using the backend IP identified from recent tasks. 
 # If this is incorrect, please update it to the active backend URL.
-BASE_API_URL = "http://35.154.214.159:8000/api/products/list"
+BASE_API_URL = "http://35.154.214.159:8000/api/kiosk/catalog"
 OUTPUT_DIR = "data"
 
 def download_file(url, filepath):

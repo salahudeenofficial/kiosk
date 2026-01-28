@@ -34,3 +34,10 @@ coverage/
 
 # Misc
 *.log
+
+# Test Images and Outputs
+tests/automated_tests/garments/
+tests/automated_tests/users/
+tests/automated_tests/output/
+prompt2/
+data/
