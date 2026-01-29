@@ -53,10 +53,8 @@ const ProductList = () => {
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState<Filters>({})
   const [sortOption, setSortOption] = useState<SortOption>({
-    value: 'newest',
-    label: 'Newest',
-    sort_by: 'created_at',
-    sort_order: 'desc',
+    value: 'featured',
+    label: 'Featured',
   })
   const [filtersDrawerOpen, setFiltersDrawerOpen] = useState(false)
 

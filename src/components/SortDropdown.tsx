@@ -3,11 +3,12 @@ import { useState } from 'react'
 export type SortOption = {
   value: string
   label: string
-  sort_by: string
-  sort_order: 'asc' | 'desc'
+  sort_by?: string
+  sort_order?: 'asc' | 'desc'
 }
 
 const SORT_OPTIONS: SortOption[] = [
+  { value: 'featured', label: 'Featured' },
   { value: 'price_asc', label: 'Price (Low to High)', sort_by: 'mrp', sort_order: 'asc' },
   { value: 'price_desc', label: 'Price (High to Low)', sort_by: 'mrp', sort_order: 'desc' },
   { value: 'rating', label: 'Rating', sort_by: 'ratings', sort_order: 'desc' },
