@@ -9,9 +9,8 @@ import SortDropdown, { type SortOption } from '../components/SortDropdown'
 import FiltersDrawer, { type Filters } from '../components/FiltersDrawer'
 import useAutoNavigate from '../hooks/useAutoNavigate'
 import { useKioskStore } from '../store/kioskStore'
-import { productApi, type ProductListItem } from '../utils/productApi'
+import { type ProductListItem } from '../utils/productApi'
 import { unifiedKioskApi } from '../utils/unifiedKioskApi'
-import { MOCK_CONFIG } from '../utils/mockKioskApi'
 import type { CatalogFilterBrand, CatalogFilterCategory } from '../utils/kioskApi'
 
 // Skeleton Card Component - Responsive fixed height matching ProductCard
@@ -104,53 +103,37 @@ const ProductList = () => {
       filters.gender ||
       (userGender === 'male' ? 'Men' : userGender === 'female' ? 'Women' : undefined)
 
-    const params = {
-      limit,
-      offset,
-      search: search || undefined,
-      gender: genderFilter,
-      category_id: filters.category_id,
-      brand_id: filters.brand_id,
-      min_price: filters.min_price,
-      max_price: filters.max_price,
-      sort_by: sortOption.sort_by,
-      sort_order: sortOption.sort_order,
-    }
+
 
     try {
       let newProducts: ProductListItem[]
 
       // Use unified API for mock mode, productApi for real backend
-      if (MOCK_CONFIG.ENABLED) {
-        const catalogResponse = await unifiedKioskApi.loadCatalog({
-          limit,
-          offset,
-          gender: genderFilter,
-          categoryId: filters.category_id,
-          search: search || undefined,
-          brand_id: filters.brand_id,
-          min_price: filters.min_price,
-          max_price: filters.max_price,
-          sort_by: sortOption.sort_by,
-          sort_order: sortOption.sort_order,
-        })
-        // Convert catalog products to ProductListItem format
-        // Cast to any to add missing fields with defaults
-        newProducts = catalogResponse.products.map(p => ({
-          productId: p.productId,
-          name: p.name,
-          mrp: p.mrp,
-          baseColour: 'Black', // Default color for mock
-          ratings: 4.0, // Default rating for mock
-          imageCount: 1, // Default image count for mock
-          imageUrl: p.imageUrl,
-          brand: p.brand,
-          category: p.category,
-        } as ProductListItem))
-      } else {
-        const response = await productApi.getProductsList(params)
-        newProducts = response.products
-      }
+      const catalogResponse = await unifiedKioskApi.loadCatalog({
+        limit,
+        offset,
+        gender: genderFilter,
+        categoryId: filters.category_id,
+        search: search || undefined,
+        brand_id: filters.brand_id,
+        min_price: filters.min_price,
+        max_price: filters.max_price,
+        sort_by: sortOption.sort_by,
+        sort_order: sortOption.sort_order,
+      })
+
+      // Convert catalog products to ProductListItem format
+      newProducts = catalogResponse.products.map(p => ({
+        productId: p.productId,
+        name: p.name,
+        mrp: p.mrp,
+        baseColour: 'Black', // Default as kiosk API doesn't return colour yet
+        ratings: 4.0, // Default as kiosk API doesn't return ratings yet
+        imageCount: 1,
+        imageUrl: p.imageUrl,
+        brand: p.brand,
+        category: p.category,
+      } as ProductListItem))
 
       newProducts = filterBlocked(newProducts)
 
@@ -260,52 +243,37 @@ const ProductList = () => {
         filters.gender ||
         (userGender === 'male' ? 'Men' : userGender === 'female' ? 'Women' : undefined)
 
-      const params = {
-        limit,
-        offset,
-        search: search || undefined,
-        gender: genderFilter,
-        category_id: filters.category_id,
-        brand_id: filters.brand_id,
-        min_price: filters.min_price,
-        max_price: filters.max_price,
-        sort_by: sortOption.sort_by,
-        sort_order: sortOption.sort_order,
-      }
+
 
       try {
         let newProducts: ProductListItem[]
 
         // Use unified API for mock mode, productApi for real backend
-        if (MOCK_CONFIG.ENABLED) {
-          const catalogResponse = await unifiedKioskApi.loadCatalog({
-            limit,
-            offset: 0,
-            gender: genderFilter,
-            categoryId: filters.category_id,
-            search: search || undefined,
-            brand_id: filters.brand_id,
-            min_price: filters.min_price,
-            max_price: filters.max_price,
-            sort_by: sortOption.sort_by,
-            sort_order: sortOption.sort_order,
-          })
-          // Convert catalog products to ProductListItem format
-          newProducts = catalogResponse.products.map(p => ({
-            productId: p.productId,
-            name: p.name,
-            mrp: p.mrp,
-            baseColour: 'Black',
-            ratings: 4.0,
-            imageCount: 1,
-            imageUrl: p.imageUrl,
-            brand: p.brand,
-            category: p.category,
-          } as ProductListItem))
-        } else {
-          const response = await productApi.getProductsList(params)
-          newProducts = response.products
-        }
+        const catalogResponse = await unifiedKioskApi.loadCatalog({
+          limit,
+          offset,
+          gender: genderFilter,
+          categoryId: filters.category_id,
+          search: search || undefined,
+          brand_id: filters.brand_id,
+          min_price: filters.min_price,
+          max_price: filters.max_price,
+          sort_by: sortOption.sort_by,
+          sort_order: sortOption.sort_order,
+        })
+
+        // Convert catalog products to ProductListItem format
+        newProducts = catalogResponse.products.map(p => ({
+          productId: p.productId,
+          name: p.name,
+          mrp: p.mrp,
+          baseColour: 'Black', // Default as kiosk API doesn't return colour yet
+          ratings: 4.0, // Default as kiosk API doesn't return ratings yet
+          imageCount: 1,
+          imageUrl: p.imageUrl,
+          brand: p.brand,
+          category: p.category,
+        } as ProductListItem))
 
         newProducts = filterBlocked(newProducts)
 
