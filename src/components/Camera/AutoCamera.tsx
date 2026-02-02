@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useKioskStore } from '../../store/kioskStore'
 import { captureFrameToDataUrl } from '../../utils/imageUtils'
 import { CaptureOverlay } from './CaptureOverlay'
+import { PoseDetector } from './PoseDetector'
 import PoseValidator from './PoseValidator'
 
 // Camera zoom level (1.0 = no zoom, 2.0 = 2x zoom, etc.)
@@ -26,6 +27,7 @@ const AutoCamera = () => {
   const navigate = useNavigate()
   const setUserImage = useKioskStore((state) => state.setUserImage)
   const validatorRef = useRef(new PoseValidator(1500))
+  const poseDetectorRef = useRef<PoseDetector | null>(null)
   const intervalRef = useRef<number | null>(null)
   const countdownRef = useRef<number | null>(null)
 
@@ -143,6 +145,13 @@ const AutoCamera = () => {
       setStatus('Get ready...')
       setCountdown(5)
 
+      // Init pose detector in parallel with countdown
+      const detector = new PoseDetector()
+      poseDetectorRef.current = detector
+      detector.init().catch((err) => {
+        console.error('[PoseDetector] Init failed:', err)
+      })
+
       let remaining = 5
       countdownRef.current = window.setInterval(() => {
         remaining--
@@ -155,7 +164,7 @@ const AutoCamera = () => {
           }
           setCountdown(null)
           setCanStartCapture(true)
-          setStatus('Center yourself and hold still')
+          setStatus('Strike an A-pose')
           beginStabilityCheck()
         }
       }, 1000)
@@ -163,14 +172,21 @@ const AutoCamera = () => {
 
     const beginStabilityCheck = () => {
       intervalRef.current = window.setInterval(() => {
+        if (!videoRef.current || !poseDetectorRef.current) return
+
+        const { isAPose, feedback } = poseDetectorRef.current.detect(
+          videoRef.current,
+          performance.now(),
+        )
         const { stable, progress: poseProgress } =
-          validatorRef.current.updatePose(true)
+          validatorRef.current.updatePose(isAPose)
         setProgress(poseProgress)
+        setStatus(feedback)
 
         if (stable && !hasCaptured) {
           handleCapture()
         }
-      }, 350)
+      }, 150)
     }
 
     startCamera()
@@ -180,6 +196,8 @@ const AutoCamera = () => {
       if (intervalRef.current) window.clearInterval(intervalRef.current)
       if (countdownRef.current) window.clearInterval(countdownRef.current)
       validatorRef.current.reset()
+      poseDetectorRef.current?.close()
+      poseDetectorRef.current = null
       const currentStream = streamRef.current || stream
       if (currentStream) currentStream.getTracks().forEach((t) => t.stop())
       streamRef.current = null
@@ -241,7 +259,7 @@ const AutoCamera = () => {
               ? error
               : countdown !== null
                 ? 'Get ready...'
-                : `Keep shoulders visible. Auto-capture starts after 1.5s.${actualResolution ? ` (${actualResolution})` : ''}${zoomInfo ? ` | ${zoomInfo}` : ''}`
+                : 'Arms slightly out, elbows straight — hold for 1.5s'
           }
         />
       </div>
