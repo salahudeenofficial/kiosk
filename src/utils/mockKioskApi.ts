@@ -291,7 +291,7 @@ const MOCK_PRODUCTS = generateMockProducts()
 // SESSION STATE
 // ============================================================================
 
-let mockSessionState: {
+type MockSessionState = {
     sessionId: string | null
     userId: number | null
     token: string | null
@@ -299,7 +299,9 @@ let mockSessionState: {
     height: number | null
     imageUrl: string | null
     measurements: Record<string, number> | null
-} = {
+}
+
+const DEFAULT_SESSION_STATE: MockSessionState = {
     sessionId: null,
     userId: null,
     token: null,
@@ -307,6 +309,25 @@ let mockSessionState: {
     height: null,
     imageUrl: null,
     measurements: null,
+}
+
+// Try to load from localStorage
+let mockSessionState: MockSessionState = DEFAULT_SESSION_STATE
+try {
+    const saved = localStorage.getItem('mock_session_state')
+    if (saved) {
+        mockSessionState = JSON.parse(saved)
+    }
+} catch (e) {
+    console.warn('Failed to load mock session state', e)
+}
+
+const saveSessionState = () => {
+    try {
+        localStorage.setItem('mock_session_state', JSON.stringify(mockSessionState))
+    } catch (e) {
+        console.warn('Failed to save mock session state', e)
+    }
 }
 
 // ============================================================================
@@ -398,6 +419,7 @@ export const mockKioskApi = {
             imageUrl: null,
             measurements: null,
         }
+        saveSessionState()
 
         console.log('[MockAPI] Session created:', mockSessionState)
 
@@ -416,6 +438,7 @@ export const mockKioskApi = {
 
         if (age !== undefined) mockSessionState.age = age
         if (height !== undefined) mockSessionState.height = height
+        saveSessionState()
 
         console.log('[MockAPI] Profile updated:', { age, height })
 
@@ -434,9 +457,10 @@ export const mockKioskApi = {
         maybeThrowError()
 
         mockSessionState.imageUrl = `https://mock-storage.example.com/user-images/${mockSessionState.userId}.jpg`
-        
+
         // Generate mock measurements after image upload
         mockSessionState.measurements = generateMockMeasurements()
+        saveSessionState()
 
         console.log('[MockAPI] Image uploaded, measurements generated')
 
@@ -596,19 +620,31 @@ export const mockKioskApi = {
         await randomDelay()
         maybeThrowError()
 
-        // If measurements haven't been generated yet (image not uploaded), return processing status
-        if (!mockSessionState.measurements) {
+        // With persistence, we might have measurements ready
+        if (mockSessionState.measurements) {
+            console.log('[MockAPI] Returning measurements')
             return {
-                status: 'processing',
-                measurements: null,
+                status: 'success',
+                measurements: mockSessionState.measurements,
             }
         }
 
-        console.log('[MockAPI] Returning measurements')
+        // Auto-generate measurements for development if missing/not uploaded
+        // This is a dev convenience to allow Fit Check testing without full flow
+        if (MOCK_CONFIG.ENABLED || import.meta.env.VITE_API_MODE === 'mock') {
+            console.log('[MockAPI] Auto-generating measurements for development testing')
+            mockSessionState.measurements = generateMockMeasurements()
+            saveSessionState()
+            return {
+                status: 'success',
+                measurements: mockSessionState.measurements
+            }
+        }
 
+        // If measurements haven't been generated yet (image not uploaded), return processing status
         return {
-            status: 'success',
-            measurements: mockSessionState.measurements,
+            status: 'processing',
+            measurements: null,
         }
     },
 
@@ -618,15 +654,8 @@ export const mockKioskApi = {
 
         console.log('[MockAPI] Session completed')
 
-        mockSessionState = {
-            sessionId: null,
-            userId: null,
-            token: null,
-            age: null,
-            height: null,
-            imageUrl: null,
-            measurements: null,
-        }
+        mockSessionState = DEFAULT_SESSION_STATE
+        saveSessionState()
     },
 
     // Debug helpers
@@ -639,18 +668,10 @@ export const mockKioskApi = {
     },
 
     resetSession() {
-        mockSessionState = {
-            sessionId: null,
-            userId: null,
-            token: null,
-            age: null,
-            height: null,
-            imageUrl: null,
-            measurements: null,
-        }
+        mockSessionState = DEFAULT_SESSION_STATE
+        saveSessionState()
     },
 }
 
 // Export mock products for direct access
 export { MOCK_PRODUCTS, CATEGORIES, BRANDS }
-

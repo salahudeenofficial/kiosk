@@ -40,8 +40,13 @@ const AppLayout = () => {
   useEffect(() => {
     const currentPath = location.pathname
 
+    // Skip all checks in dev mode to allow editing any page
+    if (import.meta.env.DEV) {
+      return
+    }
+
     // Pages that don't need a session
-    const publicPages = ['/', '/config', '/fit-check']
+    const publicPages = ['/', '/config', '/fit-check', '/products']
     if (publicPages.includes(currentPath)) {
       return
     }

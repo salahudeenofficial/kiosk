@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 import type { Product } from '../utils/mockApi'
 
 type KioskState = {
@@ -95,87 +96,106 @@ const baseState = () => ({
   sessionExpiresAt: null,
 })
 
-export const useKioskStore = create<KioskState>((set, get) => ({
-  ...baseState(),
-  setUserImage: (image) =>
-    set((state) => ({
-      userImage: image,
-      validated: false,
-      vtonResult: null,
-      sessionStartedAt: image ? Date.now() : state.sessionStartedAt,
-    })),
-  setValidated: (value) => set({ validated: value }),
-  setProducts: (items) => set({ products: items }),
-  setSelectedProduct: (product) => set({ selectedProduct: product }),
-  addSelectedProduct: (product) => {
-    const current = get().selectedProducts
-    // Check if already selected
-    if (current.some((p) => p.id === product.id)) return
-    // Limit to 3 products
-    if (current.length >= 3) return
-    set({ selectedProducts: [...current, product] })
-  },
-  removeSelectedProduct: (id) =>
-    set((state) => ({
-      selectedProducts: state.selectedProducts.filter((item) => item.id !== id),
-    })),
-  clearSelectedProducts: () => set({ selectedProducts: [] }),
-  setVtonResult: (url) => set({ vtonResult: url }),
-  setVtonResults: (urls) => set({ vtonResults: urls }),
-  addToCart: (product) => {
-    const exists = get().cart.some((item) => item.id === product.id)
-    if (exists) return
-    set((state) => ({ cart: [...state.cart, product] }))
-  },
-  removeFromCart: (id) =>
-    set((state) => ({ cart: state.cart.filter((item) => item.id !== id) })),
-  clearCart: () => set({ cart: [] }),
-  setUserGender: (gender) => set({ userGender: gender }),
-  setUserHeight: (height) => set({ userHeight: height }),
-  setUserAge: (age) => set({ userAge: age }),
-  setUserToken: (token) => set({ userToken: token }),
-  setUserId: (id) => set({ userId: id }),
-  setUserImageUrl: (url) => set({ userImageUrl: url }),
-  setSelectedSize: (size) => set({ selectedSize: size }),
-  setUserMeasurements: (measurements) => set({ userMeasurements: measurements }),
-
-  // New session actions
-  setIsConfigured: (configured) => set({ isConfigured: configured }),
-  setSession: (session) => {
-    if (session) {
-      set({
-        sessionId: session.sessionId,
-        sessionToken: session.token,
-        sessionUserId: session.userId,
-        sessionExpiresAt: session.expiresAt,
-        // Also sync with legacy state for compatibility
-        userToken: session.token,
-        userId: session.userId,
-      })
-    } else {
-      set({
-        sessionId: null,
-        sessionToken: null,
-        sessionUserId: null,
-        sessionExpiresAt: null,
-        userToken: null,
-        userId: null,
-      })
-    }
-  },
-
-  resetAll: () => set(() => baseState()),
-
-  // Reset session but keep configuration status
-  resetSession: () => {
-    const isConfigured = get().isConfigured
-    set(() => ({
+export const useKioskStore = create<KioskState>()(
+  persist(
+    (set, get) => ({
       ...baseState(),
-      isConfigured, // Preserve configuration status
-    }))
-  },
-  // UI State
-  productListScrollPosition: 0,
-  setProductListScrollPosition: (position) => set({ productListScrollPosition: position }),
-}))
+      setUserImage: (image) =>
+        set((state) => ({
+          userImage: image,
+          validated: false,
+          vtonResult: null,
+          sessionStartedAt: image ? Date.now() : state.sessionStartedAt,
+        })),
+      setValidated: (value) => set({ validated: value }),
+      setProducts: (items) => set({ products: items }),
+      setSelectedProduct: (product) => set({ selectedProduct: product }),
+      addSelectedProduct: (product) => {
+        const current = get().selectedProducts
+        // Check if already selected
+        if (current.some((p) => p.id === product.id)) return
+        // Limit to 3 products
+        if (current.length >= 3) return
+        set({ selectedProducts: [...current, product] })
+      },
+      removeSelectedProduct: (id) =>
+        set((state) => ({
+          selectedProducts: state.selectedProducts.filter((item) => item.id !== id),
+        })),
+      clearSelectedProducts: () => set({ selectedProducts: [] }),
+      setVtonResult: (url) => set({ vtonResult: url }),
+      setVtonResults: (urls) => set({ vtonResults: urls }),
+      addToCart: (product) => {
+        const exists = get().cart.some((item) => item.id === product.id)
+        if (exists) return
+        set((state) => ({ cart: [...state.cart, product] }))
+      },
+      removeFromCart: (id) =>
+        set((state) => ({ cart: state.cart.filter((item) => item.id !== id) })),
+      clearCart: () => set({ cart: [] }),
+      setUserGender: (gender) => set({ userGender: gender }),
+      setUserHeight: (height) => set({ userHeight: height }),
+      setUserAge: (age) => set({ userAge: age }),
+      setUserToken: (token) => set({ userToken: token }),
+      setUserId: (id) => set({ userId: id }),
+      setUserImageUrl: (url) => set({ userImageUrl: url }),
+      setSelectedSize: (size) => set({ selectedSize: size }),
+      setUserMeasurements: (measurements) => set({ userMeasurements: measurements }),
 
+      // New session actions
+      setIsConfigured: (configured) => set({ isConfigured: configured }),
+      setSession: (session) => {
+        if (session) {
+          set({
+            sessionId: session.sessionId,
+            sessionToken: session.token,
+            sessionUserId: session.userId,
+            sessionExpiresAt: session.expiresAt,
+            // Also sync with legacy state for compatibility
+            userToken: session.token,
+            userId: session.userId,
+          })
+        } else {
+          set({
+            sessionId: null,
+            sessionToken: null,
+            sessionUserId: null,
+            sessionExpiresAt: null,
+            userToken: null,
+            userId: null,
+          })
+        }
+      },
+
+      resetAll: () => set(() => baseState()),
+
+      // Reset session but keep configuration status
+      resetSession: () => {
+        const isConfigured = get().isConfigured
+        set(() => ({
+          ...baseState(),
+          isConfigured, // Preserve configuration status
+        }))
+      },
+      // UI State
+      productListScrollPosition: 0,
+      setProductListScrollPosition: (position) => set({ productListScrollPosition: position }),
+    }),
+    {
+      name: 'kiosk-storage',
+      partialize: (state) => ({
+        selectedProducts: state.selectedProducts,
+        userGender: state.userGender,
+        userAge: state.userAge,
+        userHeight: state.userHeight,
+        userImageUrl: state.userImageUrl,
+        userMeasurements: state.userMeasurements,
+        sessionId: state.sessionId,
+        sessionToken: state.sessionToken,
+        sessionUserId: state.sessionUserId,
+        sessionExpiresAt: state.sessionExpiresAt,
+        isConfigured: state.isConfigured,
+      }),
+    }
+  )
+)

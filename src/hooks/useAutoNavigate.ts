@@ -12,8 +12,13 @@ const useAutoNavigate = () => {
   useEffect(() => {
     const path = location.pathname
 
+    // Skip auto-nav in dev mode
+    if (import.meta.env.DEV) {
+      return
+    }
+
     // Don't auto-navigate if we're on the idle screen or fit-check
-    if (path === '/' || path === '/fit-check') {
+    if (path === '/' || path === '/fit-check' || path === '/products') {
       return
     }
 

@@ -13,18 +13,37 @@ import { type ProductListItem } from '../utils/productApi'
 import { unifiedKioskApi } from '../utils/unifiedKioskApi'
 import type { CatalogFilterBrand, CatalogFilterCategory } from '../utils/kioskApi'
 
+import PairingModal, { isEligibleForPairing } from '../components/PairingModal'
+
 // Skeleton Card Component - Responsive fixed height matching ProductCard
 const SkeletonCard = () => (
   <div
     className="product-card-height flex flex-col overflow-hidden bg-white rounded-3xl border border-slate-200 shadow-lg animate-pulse h-full"
   >
+    {/* Image placeholder */}
     <div className="w-full h-[280px] sm:h-[320px] md:h-[360px] bg-slate-200 flex-shrink-0" />
-    <div className="flex flex-col flex-1 p-3 sm:p-4 flex-shrink-0">
-      <div className="h-[56px] sm:h-[64px] md:h-[70px] mb-2 bg-slate-200 rounded flex-shrink-0" />
-      <div className="h-[20px] sm:h-[22px] md:h-[24px] mb-2 bg-slate-200 rounded w-2/3 flex-shrink-0" />
-      <div className="flex-1 min-h-0" />
-      <div className="h-[24px] sm:h-[28px] md:h-[30px] mb-2 sm:mb-3 bg-slate-200 rounded w-1/3 flex-shrink-0" />
-      <div className="h-[44px] sm:h-[46px] md:h-[48px] bg-slate-200 rounded flex-shrink-0" />
+
+    {/* Content placeholder */}
+    <div className="flex flex-col flex-1 p-3 sm:p-4 min-h-0 bg-white">
+      {/* Brand */}
+      <div className="h-3 w-16 bg-slate-200 rounded mb-2" />
+
+      {/* Name */}
+      <div className="h-4 w-3/4 bg-slate-200 rounded mb-2" />
+
+      {/* Ratings */}
+      <div className="h-3 w-24 bg-slate-200 rounded mb-4" />
+
+      {/* Price */}
+      <div className="h-5 w-20 bg-slate-200 rounded mb-3" />
+
+      <div className="flex-1" />
+
+      {/* Buttons */}
+      <div className="grid grid-cols-2 gap-2 mt-auto">
+        <div className="h-10 bg-slate-200 rounded-lg" />
+        <div className="h-10 bg-slate-200 rounded-lg" />
+      </div>
     </div>
   </div>
 )
@@ -56,12 +75,16 @@ const ProductList = () => {
     label: 'Featured',
   })
   const [filtersDrawerOpen, setFiltersDrawerOpen] = useState(false)
+  const [pairingProduct, setPairingProduct] = useState<ProductListItem | null>(null)
 
   // Filter options from backend
   const [availableCategories, setAvailableCategories] = useState<CatalogFilterCategory[]>([])
   const [availableBrands, setAvailableBrands] = useState<CatalogFilterBrand[]>([])
   const [priceRange, setPriceRange] = useState<{ min: number; max: number } | null>(null)
   const [filtersLoading, setFiltersLoading] = useState(false)
+
+  // Track loading state for each selected product
+  const [loadingStates, setLoadingStates] = useState<Record<string, 'loading' | 'success'>>({})
 
   // Infinite scroll & Scroll persistence
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -314,6 +337,30 @@ const ProductList = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page])
 
+  const addProductToSelection = (product: ProductListItem) => {
+    const storeProduct = {
+      id: product.productId.toString(),
+      title: product.name,
+      price: product.mrp,
+      image: product.imageUrl,
+      description: `${product.brand.name} - ${product.baseColour}`,
+      sizes: ['S', 'M', 'L', 'XL'],
+    }
+
+    if (!selectedProducts.some((p) => p.id === storeProduct.id)) {
+      addSelectedProduct(storeProduct)
+
+      // Start simulated loading
+      setLoadingStates(prev => ({ ...prev, [storeProduct.id]: 'loading' }))
+
+      setTimeout(() => {
+        setLoadingStates(prev => ({ ...prev, [storeProduct.id]: 'success' }))
+      }, 15000)
+      return true
+    }
+    return false
+  }
+
   const handleTryOn = (e: React.MouseEvent, product: ProductListItem) => {
     e.stopPropagation()
     const storeProduct = {
@@ -331,10 +378,41 @@ const ProductList = () => {
     if (isSelected) {
       // Remove if already selected
       removeSelectedProduct(storeProduct.id)
+      setLoadingStates((prev) => {
+        const next = { ...prev }
+        delete next[storeProduct.id]
+        return next
+      })
     } else {
       // Add if not selected (max 3)
-      addSelectedProduct(storeProduct)
+      if (selectedProducts.length < 3) {
+        addProductToSelection(product)
+      }
     }
+  }
+
+  const handlePair = (e: React.MouseEvent, product: ProductListItem) => {
+    e.stopPropagation()
+    if (isEligibleForPairing(product.category.name)) {
+      setPairingProduct(product)
+    }
+  }
+
+  const handleGeneratePair = (product1: ProductListItem, product2: ProductListItem) => {
+    // Try adding both. The store or helper checks duplicates.
+    // We also check limit.
+    const currentCount = selectedProducts.length
+
+    let addedCount = 0
+
+    if (currentCount < 3) {
+      if (addProductToSelection(product1)) addedCount++
+    }
+    if (currentCount + addedCount < 3) {
+      addProductToSelection(product2)
+    }
+
+    setPairingProduct(null)
   }
 
   const handleTryOnButton = () => {
@@ -531,6 +609,7 @@ const ProductList = () => {
                         product={product}
                         onClick={() => handleCardClick(product)}
                         onTryOn={(e) => handleTryOn(e, product)}
+                        onPair={isEligibleForPairing(product.category.name) ? (e) => handlePair(e, product) : undefined}
                         onDetails={(e) => handleDetails(e, product)}
                         isSelected={selectedProducts.some(
                           (p) => p.id === product.productId.toString(),
@@ -564,67 +643,95 @@ const ProductList = () => {
         </div>
       </div>
 
-      {/* Floating Selection Bar - Fixed at top */}
+      {/* Floating Selection Bar - Fixed at bottom */}
       <AnimatePresence>
         <motion.div
-          initial={{ y: -100, opacity: 0 }}
+          initial={{ y: 100, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-          className="fixed top-3 left-0 right-0 mx-auto z-[60] w-[94vw] max-w-[520px] px-2 sm:px-0"
+          className="fixed bottom-6 left-0 right-0 mx-auto z-[60] w-auto max-w-fit px-4"
         >
-          <div className="relative overflow-hidden rounded-xl shadow-xl border border-slate-700/50">
-            {/* Solid dark background */}
-            <div className="absolute inset-0 bg-slate-800" />
-            {/* Subtle gradient overlay */}
-            <div className="absolute inset-0 bg-gradient-to-r from-slate-800 via-slate-700 to-slate-800 opacity-50" />
+          <div className="relative overflow-hidden rounded-2xl shadow-2xl border border-transparent bg-[#959595] p-3">
+            <div className="flex items-center gap-3">
+              {[0, 1, 2].map((i) => {
+                const product = selectedProducts[i]
+                const isLoading = product && loadingStates[product.id] === 'loading'
+                const isSuccess = product && loadingStates[product.id] === 'success'
 
-            {/* Content */}
-            <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3">
-              {/* Selection Counter */}
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1">
-                  {[0, 1, 2].map((i) => (
-                    <motion.div
-                      key={i}
-                      initial={{ scale: 0.8 }}
-                      animate={{
-                        scale: i < selectedProducts.length ? 1 : 0.85,
-                        backgroundColor: i < selectedProducts.length ? '#22c55e' : '#475569'
-                      }}
-                      transition={{ type: 'spring', stiffness: 400, damping: 15 }}
-                      className="w-2.5 h-2.5 rounded-full"
-                    />
-                  ))}
-                </div>
-                <span className="text-white/90 text-sm font-medium">
-                  <span className="font-bold text-white">{selectedProducts.length}</span>
-                  <span className="text-slate-400"> / 3</span>
-                </span>
-              </div>
+                return (
+                  <div
+                    key={i}
+                    className={`
+                      relative w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden border-2 transition-all duration-300
+                      ${product
+                        ? 'border-slate-800 bg-white shadow-md'
+                        : 'border-slate-200 bg-slate-50 border-dashed'
+                      }
+                      ${isSuccess ? 'cursor-pointer hover:scale-105' : ''}
+                    `}
+                    onClick={() => {
+                      if (isSuccess) {
+                        handleTryOnButton()
+                      }
+                    }}
+                  >
+                    {product ? (
+                      <>
+                        <img
+                          src={product.image}
+                          alt={product.title}
+                          className={`w-full h-full object-cover transition-opacity duration-300 ${isLoading ? 'opacity-50' : 'opacity-100'}`}
+                        />
 
-              {/* Try On Button */}
-              <motion.button
-                onClick={handleTryOnButton}
-                disabled={selectedProducts.length === 0 || !userImage}
-                whileHover={selectedProducts.length > 0 && userImage ? { scale: 1.02 } : {}}
-                whileTap={selectedProducts.length > 0 && userImage ? { scale: 0.98 } : {}}
-                className={`
-                  w-full sm:w-auto px-5 py-2 rounded-lg font-semibold text-sm text-center
-                  transition-all duration-200
-                  ${selectedProducts.length > 0 && userImage
-                    ? 'bg-white text-slate-900 shadow-md hover:bg-slate-100'
-                    : 'bg-slate-600/50 text-slate-500 cursor-not-allowed'
-                  }
-                `}
-              >
-                Try On
-              </motion.button>
+                        {/* Loading Overlay */}
+                        {isLoading && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                            <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          </div>
+                        )}
+
+                        {/* Success Overlay */}
+                        {isSuccess && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-green-500/80 backdrop-blur-[1px]">
+                            <svg
+                              width="24"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="white"
+                              strokeWidth="3"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                          </div>
+                        )}
+
+                        {/* Remove Button (only show if not success/loading or if desired) */}
+                        {/* For this specific request, we focus on the loading/success flow. 
+                            Users can deselect from the grid if needed. */}
+                      </>
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-slate-300">
+                        <span className="text-2xl font-light">+</span>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </div>
         </motion.div>
       </AnimatePresence>
 
-
+      <PairingModal
+        isOpen={!!pairingProduct}
+        onClose={() => setPairingProduct(null)}
+        product={pairingProduct}
+        availableProducts={products}
+        onGenerate={handleGeneratePair}
+      />
 
       {/* Filters Drawer */}
       <FiltersDrawer
