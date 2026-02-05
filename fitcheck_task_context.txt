@@ -1,0 +1,30 @@
+Task: Replace stick figure in FitCheck page with a human figure and dynamic measurement lines.
+
+Status:
+- Figures moved to `public/figures/` (figure1.png = Female, figure2.png = Male).
+- Updated `FitCheckScreen.tsx` with precise coordinates.
+- Measurements tracked: **Shoulder, Chest, Waist, Hips, Inseam**.
+- **VISIBILITY UPDATE**: Hips and Inseam currently hidden (commented out) as per user request.
+- Visualization logic:
+    - 3-state system (Perfect, Tight, Loose).
+    - `MeasurementLine` refined:
+        - Width: 1px (very thin, elegant).
+        - Colors: Bright Green, Red, Blue.
+        - Opacity: 0.8 base.
+        - **SHAPE**: Curved lines (Q Bezier).
+            - Shoulder: 8% curve.
+            - Others: 15% curve.
+    - **TEXT LABELS HIDDEN**.
+- `CoordinateFinder` tool active.
+
+COMPLETED:
+- Mark down measurement lines tool created.
+- Replace figure with PNG human figure.
+- Dynamic measurement lines implemented.
+- Coordinates updated with real data.
+- Text labels removed.
+- Visuals refined (thinner, brighter, elegant).
+- Lines curved (custom per label).
+- Hips/Inseam hidden.
+
+Ready for final review.

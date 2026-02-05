@@ -13,6 +13,7 @@ import TryOnScreen from './pages/TryOnScreen'
 import TryOnResultsScreen from './pages/TryOnResultsScreen'
 import ValidationScreen from './pages/ValidationScreen'
 import FitCheckScreen from './pages/FitCheckScreen'
+import CoordinateFinder from './pages/CoordinateFinder'
 
 const router = createBrowserRouter([
   {
@@ -27,6 +28,7 @@ const router = createBrowserRouter([
       { path: 'products', element: <ProductList /> },
       { path: 'product/:id', element: <ProductDetail /> },
       { path: 'fit-check', element: <FitCheckScreen /> },
+      { path: 'coordinate-finder', element: <CoordinateFinder /> },
       { path: 'tryon', element: <TryOnScreen /> },
       { path: 'tryon-results', element: <TryOnResultsScreen /> },
       { path: 'review', element: <ReviewScreen /> },

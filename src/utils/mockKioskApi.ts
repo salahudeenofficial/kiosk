@@ -365,6 +365,7 @@ const generateMockMeasurements = (): Record<string, number> => {
         'shoulder breadth': 42 + Math.floor(Math.random() * 4), // 42-45 cm
         'calf left circumference': 36 + Math.floor(Math.random() * 4), // 36-39 cm
         'calf right circumference': 36 + Math.floor(Math.random() * 4), // 36-39 cm
+        'inseam': 74 + Math.floor(Math.random() * 8), // 74-82 cm
     }
 }
 

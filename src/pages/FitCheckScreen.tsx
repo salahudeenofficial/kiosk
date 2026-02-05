@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import MotionFade from '../components/UI/MotionFade'
+import MeasurementLine from '../components/FitCheck/MeasurementLine'
 import { useKioskStore } from '../store/kioskStore'
 import './FitCheckScreen.css'
 
@@ -65,17 +66,51 @@ interface MeasurementConfig {
     defaultRef?: number
     unit: string
     regionId: string | string[]
+    // Coordinates for the measurement line (percentage 0-100)
+    coordinates?: {
+        male: { x1: number, y1: number, x2: number, y2: number },
+        female: { x1: number, y1: number, x2: number, y2: number }
+    }
 }
 
 const measurementsConfig: MeasurementConfig[] = [
-    { key: 'neck', apiKey: 'neck circumference', label: 'Neck', defaultBody: 38, unit: 'cm', regionId: 'neck' },
-    { key: 'chest', apiKey: 'chest circumference', label: 'Chest', defaultBody: 98, unit: 'cm', regionId: 'chest' },
-    { key: 'waist', apiKey: 'waist circumference', label: 'Waist', defaultBody: 85, defaultRef: 95, unit: 'cm', regionId: 'waist' },
-    { key: 'hips', apiKey: 'hip circumference', label: 'Hips', defaultBody: 102, defaultRef: 100, unit: 'cm', regionId: 'hips' },
-    { key: 'thigh', apiKey: 'thigh left circumference', label: 'Thigh', defaultBody: 58, defaultRef: 60, unit: 'cm', regionId: ['l-thigh', 'r-thigh'] },
-    { key: 'bicep', apiKey: 'bicep right circumference', label: 'Bicep', defaultBody: 34, defaultRef: 34, unit: 'cm', regionId: ['l-arm-upper', 'r-arm-upper'] },
-    { key: 'shoulder', apiKey: 'shoulder breadth', label: 'Shoulder', defaultBody: 44, defaultRef: 46, unit: 'cm', regionId: 'chest' },
-    { key: 'calf', apiKey: 'calf left circumference', label: 'Calf', defaultBody: 38, defaultRef: 42, unit: 'cm', regionId: ['l-calf', 'r-calf'] }
+    {
+        key: 'shoulder', apiKey: 'shoulder breadth', label: 'Shoulder', defaultBody: 44, defaultRef: 46, unit: 'cm', regionId: 'chest',
+        coordinates: {
+            male: { x1: 38.84, y1: 21.38, x2: 59.64, y2: 21.53 },
+            female: { x1: 40.50, y1: 21.53, x2: 60.40, y2: 21.53 }
+        }
+    },
+    {
+        key: 'chest', apiKey: 'chest circumference', label: 'Chest', defaultBody: 98, unit: 'cm', regionId: 'chest',
+        coordinates: {
+            male: { x1: 40.80, y1: 30.88, x2: 57.08, y2: 30.58 },
+            female: { x1: 43.06, y1: 29.52, x2: 57.83, y2: 29.52 }
+        }
+    },
+    {
+        key: 'waist', apiKey: 'waist circumference', label: 'Waist', defaultBody: 85, defaultRef: 95, unit: 'cm', regionId: 'waist',
+        coordinates: {
+            male: { x1: 40.50, y1: 45.65, x2: 58.29, y2: 45.50 },
+            female: { x1: 41.85, y1: 40.68, x2: 58.14, y2: 40.68 }
+        }
+    },
+    /*
+    {
+        key: 'hips', apiKey: 'hip circumference', label: 'Hips', defaultBody: 102, defaultRef: 100, unit: 'cm', regionId: 'hips',
+        coordinates: {
+            male: { x1: 40.65, y1: 54.70, x2: 58.74, y2: 54.70 },
+            female: { x1: 40.05, y1: 50.63, x2: 59.79, y2: 50.48 }
+        }
+    },
+    {
+        key: 'inseam', apiKey: 'inseam', label: 'Inseam', defaultBody: 76, defaultRef: 78, unit: 'cm', regionId: ['l-thigh', 'r-thigh'],
+        coordinates: {
+            male: { x1: 49.09, y1: 56.87, x2: 48.64, y2: 89.43 },
+            female: { x1: 49.39, y1: 54.46, x2: 50.30, y2: 88.98 }
+        }
+    }
+    */
 ]
 
 type FitStatus = 'very-tight' | 'tight' | 'snug' | 'good' | 'relaxed' | 'loose' | 'very-loose' | 'unknown'
@@ -119,17 +154,6 @@ function calculateStatus(bodyVal: number | null, refValOrRange: [number, number]
     return 'unknown'
 }
 
-const statusColors: Record<FitStatus, string> = {
-    'very-tight': '#cc0000',
-    'tight': '#ff4d4d',
-    'snug': '#ffad33',
-    'good': '#4dff4d',
-    'relaxed': '#33e6ff',
-    'loose': '#4da6ff',
-    'very-loose': '#0040ff',
-    'unknown': '#333'
-}
-
 const statusLabels: Record<FitStatus, string> = {
     'very-tight': 'V. TIGHT',
     'tight': 'TIGHT',
@@ -149,6 +173,7 @@ interface FitCheckScreenProps {
 const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onClose }) => {
     const navigate = useNavigate()
     const apiMeasurements = useKioskStore((state) => state.userMeasurements)
+    const userGender = useKioskStore((state) => state.userGender)
     const setSelectedSize = useKioskStore((state) => state.setSelectedSize)
 
     const [isPanelOpen, setIsPanelOpen] = useState(false)
@@ -272,19 +297,6 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
         return Math.max(8, Math.min(92, position))
     }, [selectedSize, recommendedSize])
 
-    // Get color for body part
-    const getBodyPartColor = (regionId: string): string => {
-        const config = measurementsConfig.find(c => {
-            if (Array.isArray(c.regionId)) {
-                return c.regionId.includes(regionId)
-            }
-            return c.regionId === regionId
-        })
-
-        if (!config) return '#333'
-        return statusColors[fitStatuses[config.key] || 'unknown']
-    }
-
     const handleBack = () => {
         if (isOverlay && onClose) {
             onClose()
@@ -392,135 +404,54 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
 
                         {/* Content Card */}
                         <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-lg">
-                            <div className="flex flex-col items-center justify-center mb-8">
-                                <svg className="fit-body-svg" viewBox="0 0 300 600" xmlns="http://www.w3.org/2000/svg" style={{ maxHeight: '400px', width: '100%' }}>
-                                    <defs>
-                                        <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5"
-                                            markerWidth="6" markerHeight="6"
-                                            orient="auto-start-reverse">
-                                            <path d="M 0 0 L 10 5 L 0 10 z" fill="#333" />
-                                        </marker>
-                                    </defs>
+                            <div className="relative flex flex-col items-center justify-center mb-8">
+                                {/* Image Container */}
+                                <div className="relative w-full max-w-md mx-auto">
+                                    <img
+                                        src={`/figures/${userGender === 'female' ? 'figure1.png' : 'figure2.png'}`}
+                                        alt="Body Figure"
+                                        className="w-full h-auto object-contain rounded-lg"
+                                        style={{ maxHeight: '500px' }}
+                                    />
 
-                                    {/* Shift body to the left slightly to make room for labels */}
-                                    <g transform="translate(50, 0)">
-                                        {/* Head */}
-                                        <circle cx="100" cy="50" r="30" className="fit-body-part" id="head" fill="#e2e8f0" />
+                                    {/* SVG Overlay for Measurements */}
+                                    <svg
+                                        className="absolute inset-0 w-full h-full pointer-events-none"
+                                        viewBox="0 0 100 100"
+                                        preserveAspectRatio="none"
+                                    >
+                                        {measurementsConfig.map(config => {
+                                            const status = fitStatuses[config.key] || 'unknown';
+                                            const bodyVal = userMeasurements[config.key];
 
-                                        {/* Neck */}
-                                        <rect
-                                            x="85" y="80" width="30" height="20"
-                                            className="fit-body-part"
-                                            id="neck"
-                                            rx="5"
-                                            fill={getBodyPartColor('neck')}
-                                            style={{ filter: hoveredRegion === 'neck' ? 'brightness(1.2)' : 'none' }}
-                                        />
+                                            // Map detailed status to 3-state simple status for visualization
+                                            let visualStatus: 'perfect' | 'tight' | 'loose' | 'unknown' = 'unknown';
+                                            if (['good', 'snug'].includes(status)) visualStatus = 'perfect';
+                                            else if (['tight', 'very-tight'].includes(status)) visualStatus = 'tight';
+                                            else if (['relaxed', 'loose', 'very-loose'].includes(status)) visualStatus = 'loose';
 
-                                        {/* Chest */}
-                                        <path
-                                            d="M 60 110 C 60 110, 140 110, 140 110 L 130 180 L 70 180 Z"
-                                            className="fit-body-part"
-                                            id="chest"
-                                            fill={getBodyPartColor('chest')}
-                                            style={{ filter: hoveredRegion === 'chest' ? 'brightness(1.2)' : 'none' }}
-                                        />
+                                            // Get coordinates based on gender
+                                            // Default to male if undefined or gender is null
+                                            const coords = config.coordinates ? (userGender === 'female' ? config.coordinates.female : config.coordinates.male) : null;
 
-                                        {/* Waist */}
-                                        <rect
-                                            x="70" y="180" width="60" height="40"
-                                            className="fit-body-part"
-                                            id="waist"
-                                            rx="5"
-                                            fill={getBodyPartColor('waist')}
-                                            style={{ filter: hoveredRegion === 'waist' ? 'brightness(1.2)' : 'none' }}
-                                        />
+                                            if (!coords || visualStatus === 'unknown') return null;
 
-                                        {/* Hips */}
-                                        <path
-                                            d="M 70 220 L 130 220 L 140 280 L 60 280 Z"
-                                            className="fit-body-part"
-                                            id="hips"
-                                            fill={getBodyPartColor('hips')}
-                                            style={{ filter: hoveredRegion === 'hips' ? 'brightness(1.2)' : 'none' }}
-                                        />
-
-                                        {/* Arms Upper */}
-                                        <rect
-                                            x="30" y="110" width="25" height="80"
-                                            className="fit-body-part"
-                                            id="l-arm-upper"
-                                            rx="10"
-                                            fill={getBodyPartColor('l-arm-upper')}
-                                            style={{ filter: hoveredRegion === 'l-arm-upper' ? 'brightness(1.2)' : 'none' }}
-                                        />
-                                        <rect
-                                            x="145" y="110" width="25" height="80"
-                                            className="fit-body-part"
-                                            id="r-arm-upper"
-                                            rx="10"
-                                            fill={getBodyPartColor('r-arm-upper')}
-                                            style={{ filter: hoveredRegion === 'r-arm-upper' ? 'brightness(1.2)' : 'none' }}
-                                        />
-
-                                        {/* Arms Lower */}
-                                        <rect x="30" y="195" width="25" height="70" className="fit-body-part" id="l-arm-lower" rx="10" fill="#e2e8f0" />
-                                        <rect x="145" y="195" width="25" height="70" className="fit-body-part" id="r-arm-lower" rx="10" fill="#e2e8f0" />
-
-                                        {/* Thighs */}
-                                        <path
-                                            d="M 60 280 L 95 280 L 90 400 L 65 400 Z"
-                                            className="fit-body-part"
-                                            id="l-thigh"
-                                            fill={getBodyPartColor('l-thigh')}
-                                            style={{ filter: hoveredRegion === 'l-thigh' ? 'brightness(1.2)' : 'none' }}
-                                        />
-                                        <path
-                                            d="M 105 280 L 140 280 L 135 400 L 110 400 Z"
-                                            className="fit-body-part"
-                                            id="r-thigh"
-                                            fill={getBodyPartColor('r-thigh')}
-                                            style={{ filter: hoveredRegion === 'r-thigh' ? 'brightness(1.2)' : 'none' }}
-                                        />
-
-                                        {/* Calves */}
-                                        <rect
-                                            x="65" y="405" width="25" height="90"
-                                            className="fit-body-part"
-                                            id="l-calf"
-                                            rx="5"
-                                            fill="#e2e8f0"
-                                        />
-                                        <rect
-                                            x="110" y="405" width="25" height="90"
-                                            className="fit-body-part"
-                                            id="r-calf"
-                                            rx="5"
-                                            fill="#e2e8f0"
-                                        />
-                                    </g>
-
-                                    {/* Measurement Overlays (Outside group to align text) */}
-                                    <g transform="translate(50, 0)">
-                                        {/* Chest Line & Label */}
-                                        <line x1="72" y1="145" x2="128" y2="145" stroke="#333" strokeWidth="1" markerEnd="url(#arrow)" markerStart="url(#arrow)" />
-                                        <line x1="135" y1="145" x2="210" y2="145" stroke="#666" strokeWidth="1" strokeDasharray="4" />
-                                        <text x="215" y="150" fill="#333" fontSize="14" fontWeight="500">Chest</text>
-                                        <text x="215" y="165" fill="#666" fontSize="12">{userMeasurements.chest} cm</text>
-
-                                        {/* Waist Line & Label */}
-                                        <line x1="72" y1="200" x2="128" y2="200" stroke="#333" strokeWidth="1" markerEnd="url(#arrow)" markerStart="url(#arrow)" />
-                                        <line x1="135" y1="200" x2="210" y2="200" stroke="#666" strokeWidth="1" strokeDasharray="4" />
-                                        <text x="215" y="205" fill="#333" fontSize="14" fontWeight="500">Waist</text>
-                                        <text x="215" y="220" fill="#666" fontSize="12">{userMeasurements.waist} cm</text>
-
-                                        {/* Hips Line & Label */}
-                                        <line x1="72" y1="250" x2="128" y2="250" stroke="#333" strokeWidth="1" markerEnd="url(#arrow)" markerStart="url(#arrow)" />
-                                        <line x1="135" y1="250" x2="210" y2="250" stroke="#666" strokeWidth="1" strokeDasharray="4" />
-                                        <text x="215" y="255" fill="#333" fontSize="14" fontWeight="500">Hips</text>
-                                        <text x="215" y="270" fill="#666" fontSize="12">{userMeasurements.hips} cm</text>
-                                    </g>
-                                </svg>
+                                            return (
+                                                <MeasurementLine
+                                                    key={config.key}
+                                                    x1={coords.x1}
+                                                    y1={coords.y1}
+                                                    x2={coords.x2}
+                                                    y2={coords.y2}
+                                                    status={visualStatus as any}
+                                                    label={config.label}
+                                                    value={`${bodyVal} cm`}
+                                                    isHovered={hoveredRegion === config.regionId || (Array.isArray(config.regionId) && config.regionId.includes(hoveredRegion || ''))}
+                                                />
+                                            );
+                                        })}
+                                    </svg>
+                                </div>
                             </div>
 
                             {/* Recommended Size - Below Heatmap */}

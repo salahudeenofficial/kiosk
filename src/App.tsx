@@ -46,7 +46,7 @@ const AppLayout = () => {
     }
 
     // Pages that don't need a session
-    const publicPages = ['/', '/config', '/fit-check', '/products']
+    const publicPages = ['/', '/config', '/fit-check', '/products', '/coordinate-finder']
     if (publicPages.includes(currentPath)) {
       return
     }
