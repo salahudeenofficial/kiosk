@@ -11,6 +11,7 @@ type KioskState = {
   selectedProducts: Product[] // Up to 3 products for try-on
   vtonResult: string | null
   vtonResults: string[] // Array of try-on result URLs
+  vtonJobs: Record<string, { jobId?: string; status: string; imageUrl: string | null; error?: string }> // Job status per garment ID
   cart: Product[]
   sessionStartedAt: number
   userGender: 'male' | 'female' | null
@@ -41,6 +42,7 @@ type KioskState = {
   clearSelectedProducts: () => void
   setVtonResult: (url: string | null) => void
   setVtonResults: (urls: string[]) => void
+  updateVtonJob: (garmentId: string, status: string, imageUrl?: string | null, error?: string, jobId?: string) => void
   addToCart: (product: Product) => void
   removeFromCart: (id: string) => void
   clearCart: () => void
@@ -78,6 +80,7 @@ const baseState = () => ({
   selectedProducts: [],
   vtonResult: null,
   vtonResults: [],
+  vtonJobs: {},
   cart: [],
   sessionStartedAt: Date.now(),
   userGender: null,
@@ -125,6 +128,23 @@ export const useKioskStore = create<KioskState>()(
       clearSelectedProducts: () => set({ selectedProducts: [] }),
       setVtonResult: (url) => set({ vtonResult: url }),
       setVtonResults: (urls) => set({ vtonResults: urls }),
+      updateVtonJob: (garmentId, status, imageUrl, error, jobId) =>
+        set((state) => {
+          const currentJob = state.vtonJobs[garmentId] || {};
+          return {
+            vtonJobs: {
+              ...state.vtonJobs,
+              [garmentId]: {
+                ...currentJob,
+                status,
+                imageUrl: imageUrl || null,
+                error,
+                // Only update jobId if provided, otherwise keep existing
+                jobId: jobId || currentJob.jobId
+              },
+            },
+          }
+        }),
       addToCart: (product) => {
         const exists = get().cart.some((item) => item.id === product.id)
         if (exists) return

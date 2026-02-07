@@ -18,6 +18,9 @@ const shouldUseMock = (): boolean => {
     return MOCK_CONFIG.ENABLED || import.meta.env.VITE_API_MODE === 'mock'
 }
 
+// Event bus for mock mode
+const mockStreamListeners: Set<(result: VtonResultEvent) => void> = new Set()
+
 // Unified API that delegates to either real or mock
 export const unifiedKioskApi = {
     // Configuration
@@ -186,13 +189,46 @@ export const unifiedKioskApi = {
     },
 
     // VTON
-    async requestVton(garmentIds: number[]) {
+    // VTON
+    async requestVton(garmentIds: number[], stitch: boolean = false) {
         console.log(`[UnifiedAPI] requestVton - mode: ${shouldUseMock() ? 'MOCK' : 'REAL'}`)
 
         if (shouldUseMock()) {
-            return mockKioskApi.requestVton(garmentIds)
+            const result = await mockKioskApi.requestVton(garmentIds, stitch)
+
+            // Simulate results after delay for mock stream
+            setTimeout(() => {
+                const imageUrl = 'https://via.placeholder.com/768x1024?text=Mock+Try-On+Result'
+
+                result.jobs.forEach((j: any) => {
+                    if (stitch && j.garment_ids) {
+                        // For stitch, emit success for all garment IDs sharing the same image
+                        (j.garment_ids as number[]).forEach((gid: number) => {
+                            const event: VtonResultEvent = {
+                                job_id: j.job_id,
+                                garment_id: gid,
+                                status: 'SUCCESS',
+                                output_image_url: imageUrl,
+                                timestamp: new Date().toISOString()
+                            }
+                            mockStreamListeners.forEach(listener => listener(event))
+                        })
+                    } else if (j.garment_id) {
+                        const event: VtonResultEvent = {
+                            job_id: j.job_id,
+                            garment_id: j.garment_id,
+                            status: 'SUCCESS',
+                            output_image_url: imageUrl,
+                            timestamp: new Date().toISOString()
+                        }
+                        mockStreamListeners.forEach(listener => listener(event))
+                    }
+                })
+            }, 5000)
+
+            return result
         }
-        return kioskApi.requestVton(garmentIds)
+        return kioskApi.requestVton(garmentIds, stitch)
     },
 
     // For mock mode, we simulate SSE with polling
@@ -205,13 +241,38 @@ export const unifiedKioskApi = {
         console.log(`[UnifiedAPI] startVtonStream - mode: ${shouldUseMock() ? 'MOCK' : 'REAL'}`)
 
         if (shouldUseMock()) {
-            // For mock mode, we'll simulate results using the mock VTON function
-            // This won't return an EventSource, so components using this in mock mode
-            // should check for null return
-            console.log('[UnifiedAPI] Mock mode - SSE not available, use polling instead')
+            console.log('[UnifiedAPI] Mock mode - SSE not available via EventSource')
             return null
         }
         return kioskApi.startVtonStream(onResult, onError, onUpdate, onConnectionError)
+    },
+
+    async startVtonStreamWithFetch(
+        onResult: (result: VtonResultEvent) => void,
+        onError: (error: VtonErrorEvent) => void,
+        onUpdate?: (update: { job_id: string; status: string }) => void,
+        signal?: AbortSignal
+    ): Promise<void> {
+        console.log(`[UnifiedAPI] startVtonStreamWithFetch - mode: ${shouldUseMock() ? 'MOCK' : 'REAL'}`)
+
+        if (shouldUseMock()) {
+            console.log('[UnifiedAPI] Mock mode - Using simulated stream')
+            mockStreamListeners.add(onResult)
+
+            if (signal) {
+                signal.addEventListener('abort', () => {
+                    mockStreamListeners.delete(onResult)
+                })
+            }
+
+            // Keep the promise pending until aborted (simulate stream connection)
+            return new Promise<void>((resolve) => {
+                if (signal) {
+                    signal.addEventListener('abort', () => resolve())
+                }
+            })
+        }
+        return kioskApi.startVtonStreamWithFetch(onResult, onError, onUpdate, signal)
     },
 
     // Get user measurements

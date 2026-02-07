@@ -118,7 +118,9 @@ export type CatalogFiltersResponse = {
 // VTON job types
 export type VtonJob = {
     job_id: string
-    garment_id: number
+    garment_id?: number // Optional, used in standard mode
+    garment_ids?: number[] // Used in stitch mode
+    stitch?: boolean
     status: string
 }
 
@@ -546,7 +548,7 @@ export const kioskApi = {
     /**
      * Request VTON for selected garments
      */
-    async requestVton(garmentIds: number[]): Promise<VtonRequestResponse> {
+    async requestVton(garmentIds: number[], stitch: boolean = false): Promise<VtonRequestResponse> {
         const session = getStoredSession()
         if (!session) {
             throw new Error('No active session')
@@ -556,13 +558,24 @@ export const kioskApi = {
             throw new Error('Please select at least one garment')
         }
 
-        if (garmentIds.length > API_CONFIG.MAX_GARMENTS_PER_SESSION) {
-            throw new Error(`Maximum ${API_CONFIG.MAX_GARMENTS_PER_SESSION} garments allowed`)
+        if (stitch) {
+            if (garmentIds.length !== 2) {
+                throw new Error('Stitch mode requires exactly 2 garments (upper and lower)')
+            }
+        } else {
+            if (garmentIds.length > API_CONFIG.MAX_GARMENTS_PER_SESSION) {
+                throw new Error(`Maximum ${API_CONFIG.MAX_GARMENTS_PER_SESSION} garments allowed`)
+            }
         }
 
         const url = getApiUrl(`${API_CONFIG.ENDPOINTS.KIOSK_SESSION_VTON}/${session.sessionId}/vton`)
 
         try {
+            const body: any = { garment_ids: garmentIds }
+            if (stitch) {
+                body.stitch = true
+            }
+
             const response = await fetch(url, {
                 method: 'POST',
                 headers: {
@@ -570,7 +583,7 @@ export const kioskApi = {
                     'Content-Type': 'application/json',
                 },
                 credentials: 'include',
-                body: JSON.stringify({ garment_ids: garmentIds }),
+                body: JSON.stringify(body),
                 signal: AbortSignal.timeout(API_CONFIG.TIMEOUT),
             })
 
@@ -772,4 +785,3 @@ export const kioskApi = {
         clearSession()
     },
 }
-

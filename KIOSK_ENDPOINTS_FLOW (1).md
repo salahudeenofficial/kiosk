@@ -34,8 +34,8 @@ X-Kiosk-ID: {kiosk_id}
 1. **`get_kiosk_context()`** (`app/dependencies/kiosk_auth.py`)
    - Validates client credentials (X-Client-ID, X-Client-Secret)
    - Verifies kiosk exists and is assigned to client
-   - Checks kiosk status (online/offline/maintenance)
-   - Updates kiosk heartbeat timestamp
+   - Checks kiosk status (must be "online" or "offline")
+   - **Does NOT update heartbeat** (authentication is read-only)
    - Caches context in Redis (5 min TTL)
 
 ### Data Flow
@@ -53,11 +53,10 @@ get_kiosk_context()
 2. Query Database:
     ├─ ApiClient table (validate credentials)
     ├─ ClientOrganization table (get org info)
-    ├─ Kiosk table (verify kiosk assignment)
+    ├─ Kiosk table (verify kiosk assignment and status)
     ├─ ClientLocation table (get location info)
     └─ ApiSubscriptionTier table (get quota limits)
-3. Update kiosk heartbeat (kiosk.last_heartbeat = now)
-4. Cache context in Redis (5 min TTL)
+3. Cache context in Redis (5 min TTL)
     ↓
 Return Context
 ```
@@ -87,9 +86,10 @@ Return Context
 
 ### Key Features
 - Redis caching for performance (cache hit: < 0.1ms)
-- Automatic kiosk heartbeat update
+- **Read-only authentication** (no side effects like heartbeat updates)
 - Quota tier information included in response
 - Validates kiosk assignment to prevent unauthorized access
+- Supports multiple devices with same credentials (shared rate limits)
 
 ---
 
@@ -548,6 +548,12 @@ height,175.0
 ### Purpose
 Get location-specific product catalog. Can be called anytime after configuration (typically after image upload).
 
+### ⚠️ IMPORTANT: Correct Endpoint
+**Kiosks must call `/api/kiosk/catalog`, NOT `/api/products/list`**
+
+- `/api/kiosk/catalog` - **CORRECT** ✅ Location-specific, optimized for kiosks, Redis cached
+- `/api/products/list` - **WRONG** ❌ General product list, not location-specific, no kiosk optimizations
+
 ### Headers Required
 ```
 X-Client-ID: {client_id}
@@ -619,6 +625,9 @@ KioskCatalogService.get_location_catalog()
     │   ├─ min_price (Product.mrp >= min_price, if provided)
     │   └─ max_price (Product.mrp <= max_price, if provided)
     ├─ Sorting:
+    │   ├─ **Special Case - Gender-Only Filter**: If ONLY gender filter is applied
+    │   │   (no category, search, brand, price filters, or sort_by), products are
+    │   │   shuffled randomly using ORDER BY RANDOM() to show variety from all categories
     │   ├─ If sort_by="mrp": Order by Product.mrp (asc/desc), then display_order
     │   ├─ If sort_by="name": Order by Product.name (asc/desc), then display_order
     │   └─ Default (created_at): Order by display_order ASC, Product.created_at DESC
@@ -733,8 +742,25 @@ GET /api/kiosk/catalog?category_id=5&brand_id=10&min_price=1000&max_price=5000&s
   - Sort by: created_at (default), mrp, or name
   - Sort order: desc (default) or asc
   - Always includes display_order as secondary sort
+  - **Gender-only shuffle**: When filtering ONLY by gender (no other filters), products are randomly shuffled to show variety across all categories
 - **Presigned S3 URLs** (7-day expiry, no backend bandwidth)
 - **Backward compatible** - all new parameters are optional
+
+### Shuffle Behavior (Gender-Only Filter)
+When the endpoint is called with **only** a gender filter and no other parameters:
+```
+GET /api/kiosk/catalog?gender=Men
+```
+Products will be **randomly shuffled** using `ORDER BY RANDOM()` to mix garments from all categories. This provides a better browsing experience by showing variety instead of always showing the same products at the top.
+
+**Triggers shuffle when:**
+- `gender` is provided
+- `category_id`, `search`, `brand_id`, `min_price`, `max_price`, and `sort_by` are ALL null
+
+**Performance Note:**
+- Shuffle adds latency (~10-200ms depending on dataset size)
+- Redis cache (5 min TTL) mitigates this - most requests hit cache (< 1ms)
+- Different random order is cached for 5 minutes, then refreshed
 
 ---
 
@@ -838,11 +864,29 @@ X-Kiosk-ID: {kiosk_id}
 ```
 
 ### Request Body
+
+#### Standard Mode (Default)
 ```json
 {
-  "garment_ids": [123456789, 987654321]  // Max 10 garments
+  "garment_ids": [123456789, 987654321],  // Max 10 garments
+  "stitch": false  // Optional, default: false
 }
 ```
+
+#### Stitch Mode (Combine Upper + Lower Garments)
+```json
+{
+  "garment_ids": [123, 456],  // Exactly 2 garments required
+  "stitch": true              // Combine upper + lower into one try-on
+}
+```
+
+**Stitch Mode Rules:**
+- `stitch=true` requires **exactly 2** garment IDs
+- First garment (index 0) = **upper body** garment (shirt, top, jacket, etc.)
+- Second garment (index 1) = **lower body** garment (jeans, trousers, skirt, etc.)
+- Creates **one job** (not two) for the combined outfit
+- Uses the ethnic/upper-body prompt (English) for better full-outfit rendering
 
 ### Functions Called
 1. **`get_kiosk_session()`** (`app/dependencies/kiosk_session_auth.py`)
@@ -989,17 +1033,66 @@ Return Job IDs
 ### Key Features
 - **Garment Image Priority**: `vton_image=true` (kiosk catalogue) > `is_thumbnail=true` (regular) > first image
 - **Mask Provider Support**: Flux and Qwen providers
+- **Qwen Provider - Category-Based Masking**:
+  - **Upper Body Categories**: Use original user image (no mask) with simple English prompt
+    - Categories: T-shirts, Shirts, Tops, Hoodies, Sweatshirts, Jackets, Jackets Coats, Polos, Cardigans Jumpers
+  - **Ethnic Categories**: Use original user image (no mask) with simple English prompt
+    - Categories: Dresses, Kurtas, Shrugs, Skirts, Saree, Co-Ords, Jumpsuits Playsuits, Ethnic Sets, Anarkali Dresses, Lehenga Sets
+  - **Lower Body Categories**: Use masked image with detailed Chinese prompt (preserves upper body clothing)
+    - Categories: Jeans, Trousers, Palazzos, etc.
 - **Quota Enforcement**: Daily/monthly quota limits
 - **Mask Readiness Check**: Queues requests if masks not ready
 - **Direct CPU Bridge Call**: If masks ready, calls CPU Bridge immediately
 - **Storage Key Handling**: Handles kiosk vs regular product paths differently
+- **Stitch Mode (NEW)**: Combine upper + lower garments into a single try-on image
+
+### Stitch Mode (Qwen Provider Only)
+
+When `stitch=true` is passed, the backend combines two garments into a single image:
+
+**Process:**
+1. Downloads both garment images from S3
+2. Trims white borders from each image
+3. Resizes to target width (1024px)
+4. Stacks vertically (upper on top, lower on bottom)
+5. Caches stitched image in Redis (5 min TTL)
+6. CPU Bridge fetches from Redis instead of S3
+
+**Validation:**
+- Returns `400 Bad Request` if `stitch=true` but `garment_ids` does not have exactly 2 items
+- First ID must be upper-body garment
+- Second ID must be lower-body garment
+
+**Stitch Response Example:**
+```json
+{
+  "success": true,
+  "data": {
+    "session_id": "sess_a1b2c3d4e5f6g7h8",
+    "jobs": [
+      {
+        "job_id": "uuid-stitched",
+        "garment_ids": [123, 456],
+        "stitch": true,
+        "status": "QUEUED"
+      }
+    ],
+    "current_step": "results"
+  }
+}
+```
 
 ---
 
 ## 7. GET `/api/kiosk/sessions/{session_id}/stream`
 
 ### Purpose
-Server-Sent Events (SSE) stream for real-time VTON results. Opened before/during VTON processing to receive results as they complete.
+Server-Sent Events (SSE) stream for real-time VTON results. **Must be opened BEFORE or DURING VTON processing** to receive results as they complete.
+
+### ⚠️ IMPORTANT LIMITATION
+**The stream uses Redis Pub-Sub which does NOT deliver historical messages.** If you connect to the stream AFTER VTON results are already published, you will NOT receive those results. The stream only delivers messages published AFTER the subscription starts.
+
+**Best Practice:** Open the SSE stream connection BEFORE calling the VTON endpoint, or immediately after.
 
 ### Authentication Options
 1. **Query Parameter** (for EventSource compatibility):
@@ -1145,6 +1238,38 @@ Display result image (from base64 data URL, no additional HTTP request)
 - **JWT token via query param** (EventSource API limitation)
 - **Header-based auth fallback** for compatibility
 - **Real-time delivery** via Redis pub-sub
+
+### Redis Pub-Sub Limitation and Workarounds
+
+**Problem:** Redis Pub-Sub is a "fire-and-forget" mechanism. Messages published BEFORE a client subscribes are lost forever.
+
+**Scenario:** If you:
+1. Call POST `/api/kiosk/sessions/{session_id}/vton` (starts VTON processing)
+2. VTON completes and publishes results to Redis
+3. **THEN** connect to GET `/api/kiosk/sessions/{session_id}/stream`
+
+You will NOT receive the results because they were published before you subscribed.
+
+**Recommended Workarounds:**
+
+1. **Frontend Best Practice (Recommended):**
+   ```javascript
+   // Open SSE stream FIRST
+   const eventSource = new EventSource(`/api/kiosk/sessions/${sessionId}/stream?token=${jwt}`);
+
+   // THEN request VTON processing
+   await fetch(`/api/kiosk/sessions/${sessionId}/vton`, {
+     method: 'POST',
+     body: JSON.stringify({garment_ids: [123, 456]})
+   });
+   ```
+
+2. **Fallback - Poll VtonJob Database:**
+   If stream connection is delayed, poll the VtonJob table via a new endpoint (not yet implemented):
+   ```
+   GET /api/kiosk/sessions/{session_id}/vton/results
+   ```
+   This endpoint could return completed VTON results from the database.
 
 ---
 
@@ -1449,7 +1574,140 @@ All endpoints include:
 
 ---
 
+## VTON Mask Selection Logic (Qwen Provider)
+
+### Overview
+The Qwen provider uses different mask strategies based on garment category to optimize try-on quality:
+
+### Category Classification
+
+**1. Upper Body Categories (No Mask - Original Image)**
+```
+T-shirts, Shirts, Tops, Hoodies, Sweatshirts, Jackets,
+Jackets Coats, Polos, Cardigans Jumpers
+```
+- **User Image**: Original user image (no masking)
+- **Prompt**: Simple English prompt: *"place the garment on the person. Preserve texture and color of the garment."*
+- **Reason**: Upper body garments don't need lower body masking; original image provides better context
+
+**2. Ethnic/Full-Body Categories (No Mask - Original Image)**
+```
+Dresses, Kurtas, Shrugs, Skirts, Saree, Co-Ords,
+Jumpsuits Playsuits, Ethnic Sets (Kurta + Bottom + Dupatta),
+Anarkali Dresses, Lehenga Sets
+```
+- **User Image**: Original user image (no masking)
+- **Prompt**: Simple English prompt: *"place the garment on the person. Preserve texture and color of the garment."*
+- **Reason**: Full-body garments require the full context; masks can interfere with proper draping
+
+**3. Lower Body Categories (Masked Image)**
+```
+Jeans, Trousers, Palazzos, Casual trousers, Formal trousers, Track pants
+```
+- **User Image**: Masked image (lower body masked)
+- **Prompt**: Detailed Chinese prompt emphasizing upper body preservation
+- **Reason**: Lower body try-on needs to preserve upper body clothing intact
+
+### Detailed Chinese Prompt (Lower Body)
+```
+将图片 1 中的绿色遮罩区域仅用于判断服装属于上半身或下半身，不要将服装限制在遮罩范围内。
+
+当穿戴下半身服装时，图片 1 中人物的上半身服装必须被视为不可变对象，不允许被修改、重绘、调整或重新生成。
+
+将图片 2 中的服装自然地穿戴到图片 1 中的人物身上，保持图片 2 中服装的完整形状、裤长或裙长及轮廓。无论图片 2 是单独的服装图还是人物穿着该服装的图，都应准确地转移服装，同时保留其原始面料质感、材质细节和颜色准确性。
+
+确保图片 1 中人物的面部、头发、皮肤以及上半身服装完全保持不变。光照与阴影应自然匹配图片 1 的环境，但服装的材质外观必须忠实于图片 2。
+
+保持边缘平滑融合、阴影逼真，整体效果自然且不改变人物的身份特征。
+```
+
+**Translation:**
+- Use the green mask area in Image 1 only to determine if the clothing belongs to the upper or lower body, don't restrict the clothing within the mask range.
+- When wearing lower body clothing, the upper body clothing in Image 1 must be treated as an immutable object, not allowed to be modified, redrawn, adjusted, or regenerated.
+- Naturally dress the clothing from Image 2 onto the person in Image 1, maintaining the complete shape, pant length or skirt length, and contour of the clothing in Image 2...
+- Ensure that the face, hair, skin, and upper body clothing of the person in Image 1 remain completely unchanged...
+
+### Implementation Details
+
+**Function:** `get_vton_storage_keys()` in `app/utils/vton_helpers.py`
+
+**Logic:**
+```python
+if provider == "qwen":
+    if is_qwen_upper_body_category(category_name):
+        # Use original user image (no mask)
+        return {
+            "masked_user_image": user_image_s3_path,  # Original image
+            "garment_image": garment_image_path
+        }
+    elif is_qwen_ethnic_category(category_name):
+        # Use original user image (no mask)
+        return {
+            "masked_user_image": user_image_s3_path,  # Original image
+            "garment_image": garment_image_path
+        }
+    else:
+        # Lower body: use masked image
+        return {
+            "masked_user_image": mask_path,  # Pre-masked image
+            "garment_image": garment_image_path
+        }
+```
+
+**Prompt Selection:** `call_cpu_bridge()` in `app/utils/vton_helpers.py`
+```python
+if is_qwen_ethnic_category(category_name) or is_qwen_upper_body_category(category_name):
+    config["prompt"] = QWEN_PROMPT_ETHNIC  # Simple English
+else:
+    config["prompt"] = QWEN_PROMPT_NON_ETHNIC  # Detailed Chinese
+```
+
+---
+
+## Multi-Device Support
+
+### Can the same kiosk_id be used from multiple devices?
+
+**YES.** The system fully supports multiple devices using the same `client_id`, `client_secret`, and `kiosk_id` credentials simultaneously.
+
+### How it Works
+
+**Authentication:**
+- No device-level tracking or restrictions
+- Authentication is per-kiosk, not per-device
+- `get_kiosk_context()` validates credentials and kiosk assignment only
+- Multiple devices can authenticate with the same credentials
+
+**Session Management:**
+- Each device can create separate sessions via `POST /api/kiosk/sessions`
+- Sessions are tracked by `session_id`, not by device
+- Multiple active sessions per kiosk are allowed
+
+**Rate Limiting:**
+- Rate limits are applied per `kiosk_id` (NOT per device)
+- All devices sharing the same `kiosk_id` share the same rate limit quota
+- Redis quota key: `kiosk:quota:vton:{client_org_id}:{today}`
+
+**Example Scenario:**
+```
+Device A: Uses kiosk_id="KSK-001"
+Device B: Uses kiosk_id="KSK-001" (same credentials)
+
+Both devices:
+- Can authenticate simultaneously
+- Can create separate sessions
+- Share the daily VTON quota (e.g., 1000 requests/day for that kiosk)
+- If Device A uses 600 requests, Device B has 400 remaining
+```
+
+**Use Cases:**
+- Testing: Multiple developers testing with the same kiosk credentials
+- Backup devices: Primary and backup kiosks at the same location
+- Load balancing: Multiple kiosk screens served by different hardware
+
+---
+
 ## End of Documentation
 
-This completes the comprehensive documentation of all kiosk device endpoints, their functions, data flow, and microservice interactions.
+This completes the comprehensive documentation of all kiosk device endpoints, their functions, data flow, microservice interactions, and implementation details.
 

@@ -11,7 +11,7 @@ import useAutoNavigate from '../hooks/useAutoNavigate'
 import { useKioskStore } from '../store/kioskStore'
 import { type ProductListItem } from '../utils/productApi'
 import { unifiedKioskApi } from '../utils/unifiedKioskApi'
-import type { CatalogFilterBrand, CatalogFilterCategory } from '../utils/kioskApi'
+import type { CatalogFilterBrand, CatalogFilterCategory, VtonJob } from '../utils/kioskApi'
 
 import PairingModal, { isEligibleForPairing } from '../components/PairingModal'
 
@@ -48,6 +48,11 @@ const SkeletonCard = () => (
   </div>
 )
 
+// Blocklist for products to hide (by productId). Populate as needed.
+const BLOCKED_PRODUCT_IDS: Array<number | string> = []
+const filterBlocked = (items: ProductListItem[]) =>
+  items.filter((item) => !BLOCKED_PRODUCT_IDS.includes(item.productId))
+
 const ProductList = () => {
   useAutoNavigate()
   const navigate = useNavigate()
@@ -55,12 +60,9 @@ const ProductList = () => {
   const addSelectedProduct = useKioskStore((state) => state.addSelectedProduct)
   const removeSelectedProduct = useKioskStore((state) => state.removeSelectedProduct)
   const userGender = useKioskStore((state) => state.userGender)
-  const userImage = useKioskStore((state) => state.userImage)
 
-  // Blocklist for products to hide (by productId). Populate as needed.
-  const BLOCKED_PRODUCT_IDS: Array<number | string> = []
-  const filterBlocked = (items: ProductListItem[]) =>
-    items.filter((item) => !BLOCKED_PRODUCT_IDS.includes(item.productId))
+  const vtonJobs = useKioskStore((state) => state.vtonJobs)
+  const updateVtonJob = useKioskStore((state) => state.updateVtonJob)
 
   // State management
   const [products, setProducts] = useState<ProductListItem[]>([])
@@ -84,7 +86,8 @@ const ProductList = () => {
   const [filtersLoading, setFiltersLoading] = useState(false)
 
   // Track loading state for each selected product
-  const [loadingStates, setLoadingStates] = useState<Record<string, 'loading' | 'success'>>({})
+  // REPLACED by vtonJobs from store
+  // const [loadingStates, setLoadingStates] = useState<Record<string, 'loading' | 'success'>>({})
 
   // Infinite scroll & Scroll persistence
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -108,11 +111,13 @@ const ProductList = () => {
 
   const limit = 20
   const loadingRef = useRef(false) // Prevent double-fetch
+  const hasMoreRef = useRef(true) // Sync with hasMore state to avoid dependency loop
 
   // Load products function
   const loadProducts = useCallback(async () => {
     // Prevent duplicate requests
-    if (loadingRef.current || loading || !hasMore) return
+    // Important: DO NOT checking "loading" if page is 0, effectively forcing reload on filter change
+    if (loadingRef.current || (!hasMoreRef.current && page > 0)) return
 
     loadingRef.current = true
     setLoading(true)
@@ -163,6 +168,7 @@ const ProductList = () => {
       // Auto-stop when returned less than limit
       if (newProducts.length < limit) {
         setHasMore(false)
+        hasMoreRef.current = false
       }
 
       // Filter duplicates and append results
@@ -189,11 +195,12 @@ const ProductList = () => {
       console.error('Error loading products', err)
       setError('Failed to load products. Please try again.')
       setHasMore(false)
+      hasMoreRef.current = false
     } finally {
       setLoading(false)
       loadingRef.current = false
     }
-  }, [page, loading, hasMore, search, filters, sortOption, userGender])
+  }, [page, search, filters, sortOption, userGender])
 
   // Load more handler - increments page which triggers loadProducts
   const handleLoadMore = useCallback(() => {
@@ -252,92 +259,30 @@ const ProductList = () => {
     setProducts([])
     setPage(0)
     setHasMore(true)
+    hasMoreRef.current = true
     setError(null)
     loadingRef.current = false
 
-    // Load first page
-    const loadFirstPage = async () => {
-      if (loadingRef.current) return
+    // We intentionally do NOT call loadProducts here.
+    // Setting page to 0 will trigger the page change effect below.
+  }, [filters, search, sortOption, userGender])
 
-      loadingRef.current = true
-      setLoading(true)
-      const offset = 0
-      const genderFilter =
-        filters.gender ||
-        (userGender === 'male' ? 'Men' : userGender === 'female' ? 'Women' : undefined)
+  // Trigger load when page changes
+  useEffect(() => {
+    loadProducts()
+  }, [page, loadProducts])
 
 
 
-      try {
-        let newProducts: ProductListItem[]
 
-        // Use unified API for mock mode, productApi for real backend
-        const catalogResponse = await unifiedKioskApi.loadCatalog({
-          limit,
-          offset,
-          gender: genderFilter,
-          categoryId: filters.category_id,
-          search: search || undefined,
-          brand_id: filters.brand_id,
-          min_price: filters.min_price,
-          max_price: filters.max_price,
-          sort_by: sortOption.sort_by,
-          sort_order: sortOption.sort_order,
-        })
 
-        // Convert catalog products to ProductListItem format
-        newProducts = catalogResponse.products.map(p => ({
-          productId: p.productId,
-          name: p.name,
-          mrp: p.mrp,
-          baseColour: 'Black', // Default as kiosk API doesn't return colour yet
-          ratings: 4.0, // Default as kiosk API doesn't return ratings yet
-          imageCount: 1,
-          imageUrl: p.imageUrl,
-          brand: p.brand,
-          category: p.category,
-        } as ProductListItem))
 
-        newProducts = filterBlocked(newProducts)
 
-        if (newProducts.length < limit) {
-          setHasMore(false)
-        }
-
-        const uniqueProducts = newProducts.filter(
-          (product, index, self) =>
-            index === self.findIndex((p) => p.productId === product.productId),
-        )
-        setProducts(uniqueProducts)
-        // Keep page at 0 - handleLoadMore will increment to 1 for next batch (offset=20)
-      } catch (err) {
-        console.error('Error loading products', err)
-        setError('Failed to load products. Please try again.')
-        setHasMore(false)
-      } finally {
-        setLoading(false)
-        loadingRef.current = false
-      }
-    }
-
-    loadFirstPage()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, filters, sortOption, userGender])
 
   // Load products when page changes (triggered by Load More button)
-  useEffect(() => {
-    // Skip if page is 0 (initial load handled by reset effect)
-    if (page === 0) return
 
-    // Skip if already loading or no more data
-    if (loadingRef.current || loading || !hasMore) return
 
-    // Load products for current page (offset = page * limit)
-    loadProducts()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page])
-
-  const addProductToSelection = (product: ProductListItem) => {
+  const addProductToSelection = (product: ProductListItem, pairedItem?: ProductListItem) => {
     const storeProduct = {
       id: product.productId.toString(),
       title: product.name,
@@ -345,20 +290,54 @@ const ProductList = () => {
       image: product.imageUrl,
       description: `${product.brand.name} - ${product.baseColour}`,
       sizes: ['S', 'M', 'L', 'XL'],
+      pairedProduct: pairedItem ? {
+        id: pairedItem.productId.toString(),
+        title: pairedItem.name,
+        price: pairedItem.mrp,
+        image: pairedItem.imageUrl,
+        description: `${pairedItem.brand.name} - ${pairedItem.baseColour}`,
+        sizes: ['S', 'M', 'L', 'XL'],
+      } : undefined
     }
 
     if (!selectedProducts.some((p) => p.id === storeProduct.id)) {
       addSelectedProduct(storeProduct)
-
-      // Start simulated loading
-      setLoadingStates(prev => ({ ...prev, [storeProduct.id]: 'loading' }))
-
-      setTimeout(() => {
-        setLoadingStates(prev => ({ ...prev, [storeProduct.id]: 'success' }))
-      }, 15000)
+      // VTON request is now triggered separately to handle stitch vs single
       return true
     }
     return false
+  }
+
+  const triggerVton = async (productIds: number[], stitch: boolean = false) => {
+    try {
+      // Optimistic update
+      productIds.forEach(id => {
+        updateVtonJob(id.toString(), 'RUNNING', null)
+      })
+
+      const response = await unifiedKioskApi.requestVton(productIds, stitch)
+      console.log('[ProductList] VTON requested:', response)
+
+      // Update jobs with returned status (might be QUEUED or WAITING_MASK)
+      response.jobs.forEach((j) => {
+        const job = j as VtonJob
+        const status = job.status
+        const jobId = job.job_id
+        if (stitch && job.garment_ids) {
+          (job.garment_ids as number[]).forEach((gid: number) => {
+            updateVtonJob(gid.toString(), status, null, undefined, jobId)
+          })
+        } else if (job.garment_id) {
+          updateVtonJob(job.garment_id.toString(), status, null, undefined, jobId)
+        }
+      })
+
+    } catch (err) {
+      console.error('VTON request failed:', err)
+      productIds.forEach(id => {
+        updateVtonJob(id.toString(), 'FAILED', null, err instanceof Error ? err.message : 'Unknown error')
+      })
+    }
   }
 
   const handleTryOn = (e: React.MouseEvent, product: ProductListItem) => {
@@ -378,15 +357,18 @@ const ProductList = () => {
     if (isSelected) {
       // Remove if already selected
       removeSelectedProduct(storeProduct.id)
-      setLoadingStates((prev) => {
-        const next = { ...prev }
-        delete next[storeProduct.id]
-        return next
-      })
+      // Removed local loading state update
+      // setLoadingStates((prev) => {
+      //   const next = { ...prev }
+      //   delete next[storeProduct.id]
+      //   return next
+      // })
     } else {
       // Add if not selected (max 3)
       if (selectedProducts.length < 3) {
-        addProductToSelection(product)
+        if (addProductToSelection(product)) {
+          triggerVton([product.productId], false)
+        }
       }
     }
   }
@@ -399,25 +381,22 @@ const ProductList = () => {
   }
 
   const handleGeneratePair = (product1: ProductListItem, product2: ProductListItem) => {
-    // Try adding both. The store or helper checks duplicates.
-    // We also check limit.
-    const currentCount = selectedProducts.length
+    // We want to try on these two products as a pair (stitch mode).
+    // First, ensure they are in the selected products list.
+    const targetIds = [product1.productId, product2.productId]
 
-    let addedCount = 0
+    // Add primary product with paired product info
+    // This counts as ONE request visually in the bar
+    addProductToSelection(product1, product2)
 
-    if (currentCount < 3) {
-      if (addProductToSelection(product1)) addedCount++
-    }
-    if (currentCount + addedCount < 3) {
-      addProductToSelection(product2)
-    }
-
+    // Trigger ONE stitch request for exactly these two items
     setPairingProduct(null)
+    triggerVton(targetIds, true)
   }
 
-  const handleTryOnButton = () => {
+  const handleTryOnButton = (initialIndex: number = 0) => {
     if (selectedProducts.length === 0) return
-    navigate('/tryon-results')
+    navigate('/tryon-results', { state: { initialIndex } })
   }
 
   const handleDetails = (e: React.MouseEvent, product: ProductListItem) => {
@@ -435,7 +414,8 @@ const ProductList = () => {
   const handleRetry = () => {
     setError(null)
     setHasMore(true)
-    handleLoadMore()
+    hasMoreRef.current = true
+    loadProducts()
   }
 
   const handleEndSession = async () => {
@@ -655,8 +635,9 @@ const ProductList = () => {
             <div className="flex items-center gap-3">
               {[0, 1, 2].map((i) => {
                 const product = selectedProducts[i]
-                const isLoading = product && loadingStates[product.id] === 'loading'
-                const isSuccess = product && loadingStates[product.id] === 'success'
+                const jobStatus = product ? vtonJobs[product.id] : null
+                const isLoading = jobStatus?.status === 'RUNNING' || jobStatus?.status === 'PENDING' || jobStatus?.status === 'QUEUED' || jobStatus?.status === 'WAITING_MASK'
+                const isSuccess = jobStatus?.status === 'SUCCESS' || (product && vtonJobs[product.id]?.imageUrl)
 
                 return (
                   <div
@@ -671,7 +652,7 @@ const ProductList = () => {
                     `}
                     onClick={() => {
                       if (isSuccess) {
-                        handleTryOnButton()
+                        handleTryOnButton(i)
                       }
                     }}
                   >

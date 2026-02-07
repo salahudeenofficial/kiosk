@@ -6,6 +6,7 @@ import useSessionTimeout from './hooks/useSessionTimeout'
 import SessionTimeoutBar from './components/UI/SessionTimeoutBar'
 import DebugPanel from './components/Debug/DebugPanel'
 import { unifiedKioskApi } from './utils/unifiedKioskApi'
+import type { VtonResultEvent, VtonErrorEvent } from './utils/kioskApi'
 
 const AppLayout = () => {
   const navigate = useNavigate()
@@ -13,6 +14,102 @@ const AppLayout = () => {
   const userGender = useKioskStore((state) => state.userGender)
   const sessionId = useKioskStore((state) => state.sessionId)
   const setIsConfigured = useKioskStore((state) => state.setIsConfigured)
+  const updateVtonJob = useKioskStore((state) => state.updateVtonJob)
+
+  // Global VTON Stream Listener
+  useEffect(() => {
+    if (!sessionId) return
+
+    const controller = new AbortController()
+
+    const startStream = async () => {
+      try {
+        await unifiedKioskApi.startVtonStreamWithFetch(
+          (result: VtonResultEvent) => {
+            console.log('[App] Received VTON result:', result)
+
+            // Logic to handle stitch mode:
+            // If the result has a job_id, update all local jobs sharing that job_id.
+            // This ensures both garments in a pair get updated even if the event only lists one garment ID.
+            const currentJobs = useKioskStore.getState().vtonJobs
+            let updatedCount = 0
+
+            if (result.job_id) {
+              Object.entries(currentJobs).forEach(([gid, job]) => {
+                if (job.jobId === result.job_id) {
+                  updateVtonJob(
+                    gid, // Update this garment
+                    result.status,
+                    result.output_image_data || result.output_image_url,
+                    result.error || undefined,
+                    result.job_id
+                  )
+                  updatedCount++
+                }
+              })
+            }
+
+            // Fallback: If no jobs matched by ID (or specific single job), update by garment_id from event
+            if (updatedCount === 0) {
+              updateVtonJob(
+                result.garment_id.toString(),
+                result.status,
+                result.output_image_data || result.output_image_url,
+                result.error || undefined,
+                result.job_id
+              )
+            }
+          },
+          (error: VtonErrorEvent) => {
+            console.error('[App] Received VTON error:', error)
+            // Similar logic for error
+            const currentJobs = useKioskStore.getState().vtonJobs
+            let updatedCount = 0
+
+            if (error.job_id) {
+              Object.entries(currentJobs).forEach(([gid, job]) => {
+                if (job.jobId === error.job_id) {
+                  updateVtonJob(
+                    gid,
+                    error.status,
+                    null,
+                    error.error,
+                    error.job_id
+                  )
+                  updatedCount++
+                }
+              })
+            }
+
+            if (updatedCount === 0) {
+              updateVtonJob(
+                error.garment_id.toString(),
+                error.status,
+                null,
+                error.error,
+                error.job_id
+              )
+            }
+          },
+          (update) => {
+            console.log('[App] Received VTON update:', update)
+            // Functionality for updates if needed, e.g. update status to 'PROCESSING'
+          },
+          controller.signal
+        )
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') return
+        console.error('[App] Stream error:', err)
+        // Retry logic could go here
+      }
+    }
+
+    startStream()
+
+    return () => {
+      controller.abort()
+    }
+  }, [sessionId, updateVtonJob])
 
   // Initialize session timeout logic
   const { remaining, resetTimer, isWarning } = useSessionTimeout()

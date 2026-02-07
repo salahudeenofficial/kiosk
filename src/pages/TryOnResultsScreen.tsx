@@ -1,48 +1,59 @@
-import { useEffect, useState, useRef, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState, useMemo, useRef } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { Swiper, SwiperSlide } from 'swiper/react'
 import { Navigation, Pagination } from 'swiper/modules'
 import type { Swiper as SwiperType } from 'swiper'
 import MotionFade from '../components/UI/MotionFade'
 import LoadingPulse from '../components/UI/LoadingPulse'
 import { useKioskStore } from '../store/kioskStore'
-import { unifiedKioskApi, type VtonResultEvent, type VtonErrorEvent } from '../utils/unifiedKioskApi'
+import { unifiedKioskApi } from '../utils/unifiedKioskApi'
 import useAutoNavigate from '../hooks/useAutoNavigate'
 import { formatPrice } from '../utils/validators'
-import { MOCK_PRODUCTS } from '../utils/mockKioskApi'
 
 // Import Swiper styles
 import 'swiper/css'
 import 'swiper/css/navigation'
 import 'swiper/css/pagination'
 
-type VtonJob = {
-  garment_id: string
-  productName: string
-  imageUrl: string | null
-  status: string
-  error?: string
-  responseTime?: number
-}
-
 const TryOnResultsScreen = () => {
   useAutoNavigate()
   const navigate = useNavigate()
   const selectedProducts = useKioskStore((state) => state.selectedProducts)
-  const addSelectedProduct = useKioskStore((state) => state.addSelectedProduct)
-  const setVtonResults = useKioskStore((state) => state.setVtonResults)
   const resetSession = useKioskStore((state) => state.resetSession)
   const setUserMeasurements = useKioskStore((state) => state.setUserMeasurements)
   const userMeasurements = useKioskStore((state) => state.userMeasurements)
 
-  const [jobs, setJobs] = useState<VtonJob[]>([])
-  const [error, setError] = useState<string | null>(null)
-  const [isRequestingVton, setIsRequestingVton] = useState(true)
-  const [activeIndex, setActiveIndex] = useState(0)
+  const vtonJobs = useKioskStore((state) => state.vtonJobs)
+
+  // Derived state from store jobs
+  const jobs = useMemo(() => {
+    return selectedProducts.map(p => {
+      const job = vtonJobs[p.id]
+      return {
+        garment_id: p.id,
+        productName: p.title || 'Product',
+        imageUrl: job?.imageUrl || null,
+        status: job?.status || 'PENDING',
+        error: job?.error,
+      }
+    })
+  }, [selectedProducts, vtonJobs])
+
+  const isLoading = useMemo(() => jobs.some(j => j.status === 'RUNNING' || j.status === 'PENDING' || j.status === 'QUEUED' || j.status === 'WAITING_MASK'), [jobs])
+  const location = useLocation()
+  const [activeIndex, setActiveIndex] = useState(location.state?.initialIndex || 0)
 
   // Refs for cleanup
   const eventSourceRef = useRef<EventSource | null>(null)
-  const hasInitiatedRef = useRef(false)
+
+  // Get current error state (if all jobs failed)
+  const error = useMemo(() => {
+    // Only show error if NOT loading and ALL jobs failed
+    if (!isLoading && jobs.length > 0 && jobs.every(j => j.status === 'FAILED' || j.error)) {
+      return jobs.find(j => j.error)?.error || 'All try-ons failed'
+    }
+    return null
+  }, [jobs, isLoading])
 
   // Poll for measurements
   useEffect(() => {
@@ -76,185 +87,29 @@ const TryOnResultsScreen = () => {
     return () => clearInterval(interval)
   }, [setUserMeasurements, userMeasurements])
 
-  // Main effect for VTON
+  // Main effect: Ensure session and products valid
   useEffect(() => {
-    if (hasInitiatedRef.current) return
-    hasInitiatedRef.current = true
-
-    const initFlow = async () => {
-      const isDev = unifiedKioskApi.isMockMode() || import.meta.env.DEV
-
-      // 1. Check Session
-      let session = unifiedKioskApi.getSession()
-
-      // Auto-create session in mock/dev mode if missing
-      if (!session && isDev) {
-        console.log('[Dev] Auto-creating mock session')
-        await unifiedKioskApi.createSession()
-        session = unifiedKioskApi.getSession()
-      }
-
-      const hasSession = !!session
-      if (!hasSession) {
-        console.log('[VTON] No active session, redirecting')
-        navigate('/')
-        return
-      }
-
-      // 2. Check Products
-      let currentProducts = useKioskStore.getState().selectedProducts
-
-      // Auto-populate products in mock/dev mode if empty
-      if (currentProducts.length === 0 && isDev) {
-        console.log('[Dev] Auto-seeding mock products')
-        const mockItems = MOCK_PRODUCTS.slice(0, 3)
-        mockItems.forEach(p => {
-          addSelectedProduct({
-            id: String(p.productId),
-            title: p.name,
-            price: p.mrp,
-            image: p.imageUrl,
-            description: `${p.brand.name} - ${p.baseColour}`,
-            sizes: ['S', 'M', 'L', 'XL']
-          })
-        })
-        // Re-read from store for immediate consistency
-        currentProducts = useKioskStore.getState().selectedProducts
-      }
-
-      if (currentProducts.length === 0) {
-        console.log('[VTON] No products selected, redirecting')
-        navigate('/products')
-        return
-      }
-
-      // 3. Initialize Jobs
-      const initialJobs: VtonJob[] = currentProducts.slice(0, 3).map((product) => ({
-        garment_id: String(product.id),
-        productName: product.title || 'Product',
-        imageUrl: null,
-        status: 'PENDING',
-      }))
-      setJobs(initialJobs)
-
-      // 4. Start VTON Request
-      try {
-        const garmentIds = currentProducts.slice(0, 3).map((p) => Number(p.id))
-        console.log('[VTON] Requesting VTON for garments:', garmentIds)
-
-        const startTime = Date.now()
-        // In mock mode, requestVton returns mock jobs quickly
-        const response = await unifiedKioskApi.requestVton(garmentIds)
-        console.log('[VTON] VTON request successful:', response.jobs)
-
-        // Update job statuses from response
-        setJobs((prev) =>
-          prev.map((job) => {
-            const responseJob = response.jobs.find((j) => String(j.garment_id) === job.garment_id)
-            if (responseJob) {
-              return { ...job, status: responseJob.status }
-            }
-            return job
-          })
-        )
-
-        setIsRequestingVton(false)
-
-        // Start SSE stream for results (or mock polling)
-        console.log('[VTON] Starting processing stream...')
-        const eventSource = unifiedKioskApi.startVtonStream(
-          (result: VtonResultEvent) => {
-            console.log('[VTON] Received result:', result)
-            setJobs((prev) =>
-              prev.map((job) => {
-                if (job.garment_id === String(result.garment_id)) {
-                  const img = result.output_image_data || result.output_image_url || null
-                  return {
-                    ...job,
-                    imageUrl: img,
-                    status: result.status,
-                    responseTime: Date.now() - startTime,
-                  }
-                }
-                return job
-              })
-            )
-            setJobs((currentJobs) => {
-              const allUrls = currentJobs
-                .filter(j => j.imageUrl !== null)
-                .map(j => j.imageUrl!)
-
-              const newImg = result.output_image_data || result.output_image_url
-              if (newImg && !allUrls.includes(newImg)) {
-                allUrls.push(newImg)
-              }
-              setVtonResults(allUrls)
-              return currentJobs
-            })
-          },
-          (errorEvent: VtonErrorEvent) => {
-            console.error('[VTON] Error for garment:', errorEvent)
-            setJobs((prev) =>
-              prev.map((job) => {
-                if (job.garment_id === String(errorEvent.garment_id)) {
-                  return {
-                    ...job,
-                    status: errorEvent.status,
-                    error: errorEvent.error,
-                  }
-                }
-                return job
-              })
-            )
-          },
-          (update) => {
-            setJobs((prev) => prev.map(job =>
-              job.garment_id === update.job_id ? { ...job, status: update.status } : job
-            ))
-          },
-          (connectionError) => {
-            console.error('[VTON] SSE connection error:', connectionError)
-          }
-        )
-
-        if (eventSource) {
-          eventSourceRef.current = eventSource
-        } else if (unifiedKioskApi.isMockMode() || isDev) {
-          // Poll for mock results since SSE isn't real in mock mode
-          console.log('[Dev] Starting mock result simulation')
-          garmentIds.forEach(id => {
-            unifiedKioskApi.getMockVtonResult(id).then(res => {
-              // Simulate updating state with result
-              setJobs(prev => prev.map(j => j.garment_id === String(id) ? {
-                ...j,
-                imageUrl: res.output_image_url || null,
-                status: 'SUCCESS',
-                responseTime: Date.now() - startTime
-              } : j))
-            })
-          })
-        }
-
-      } catch (err) {
-        console.error('[VTON] Error:', err)
-        setError(err instanceof Error ? err.message : 'Failed to start try-on')
-        setIsRequestingVton(false)
-      }
+    const session = unifiedKioskApi.getSession()
+    // If no session exists locally or in store, redirect
+    if (!session && !useKioskStore.getState().sessionId) {
+      console.log('[TryOnResults] No session, redirecting')
+      navigate('/')
+      return
     }
+    if (selectedProducts.length === 0) {
+      console.log('[TryOnResults] No products, redirecting')
+      navigate('/products')
+    }
+  }, [navigate, selectedProducts])
 
-    initFlow()
-
+  // Cleanup on unmount
+  useEffect(() => {
     return () => {
-      console.log('[VTON] Cleanup')
       if (eventSourceRef.current) {
         eventSourceRef.current.close()
-        eventSourceRef.current = null
       }
-      setTimeout(() => {
-        hasInitiatedRef.current = false
-      }, 100)
     }
-  }, [selectedProducts, navigate, setVtonResults, addSelectedProduct])
+  }, [])
 
   const handleDone = async () => {
     if (eventSourceRef.current) {
@@ -271,13 +126,9 @@ const TryOnResultsScreen = () => {
   }
 
   // Get current product details
-  const currentJob = jobs[activeIndex]
-  const currentProduct = useMemo(() => {
-    if (!currentJob) return null
-    return selectedProducts.find(p => String(p.id) === currentJob.garment_id)
-  }, [currentJob, selectedProducts])
+  const currentJob = jobs[activeIndex] || jobs[0]
 
-  if (isRequestingVton) {
+  if (isLoading && jobs.every(j => !j.imageUrl)) {
     return (
       <div className="fixed inset-0 bg-white text-black overflow-hidden z-50 min-h-screen w-full flex flex-col items-center justify-center">
         <LoadingPulse className="text-black/50 max-w-[200px]" />
@@ -303,7 +154,18 @@ const TryOnResultsScreen = () => {
 
         {/* Header */}
         <div className="absolute top-0 left-0 right-0 z-20 px-6 py-6 flex items-center justify-between pointer-events-none">
-          <h2 className="text-xl font-bold text-black tracking-wide pointer-events-auto">Try-On Results</h2>
+          <div className="flex items-center gap-4 pointer-events-auto">
+            <button
+              onClick={() => navigate('/products')}
+              className="w-10 h-10 bg-white rounded-full flex items-center justify-center border border-gray-200 text-black shadow-sm hover:bg-neutral-50 transition-all"
+              aria-label="Back to Products"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 12H5M12 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <h2 className="text-xl font-bold text-black tracking-wide">Try-On Results</h2>
+          </div>
 
           {/* End Session Button */}
           <button
@@ -321,6 +183,7 @@ const TryOnResultsScreen = () => {
         {/* Swiper Content */}
         <div className="flex-1 w-full h-full pb-0">
           <Swiper
+            initialSlide={activeIndex}
             modules={[Navigation, Pagination]}
             spaceBetween={20}
             slidesPerView={1}
@@ -360,27 +223,59 @@ const TryOnResultsScreen = () => {
                       </div>
                     )}
 
-                    {job.responseTime && (
-                      <div className="absolute top-4 right-4 bg-white/80 backdrop-blur-md px-3 py-1 rounded-full text-[10px] sm:text-xs text-black/60 font-mono border border-gray-200">
-                        {(job.responseTime / 1000).toFixed(1)}s
-                      </div>
-                    )}
-
                     {/* Garment Details Overlay - Bottom Left */}
+                    {/* Garment Details Overlay */}
                     {product && (
-                      <div className="absolute bottom-4 left-4 z-10 max-w-[150px] sm:max-w-[200px]">
-                        <div className="bg-white/90 backdrop-blur-lg p-3 rounded-2xl shadow-lg border border-white/50">
-                          <p className="text-[10px] text-black/50 uppercase tracking-widest font-bold">
-                            {product.description ? product.description.split('-')[0] : 'Brand'}
-                          </p>
-                          <h3 className="text-sm font-bold text-black truncate leading-tight">
-                            {product.title}
-                          </h3>
-                          <p className="text-xs font-medium text-black/80 mt-1">
-                            {formatPrice(product.price)}
-                          </p>
-                        </div>
-                      </div>
+                      <>
+                        {product.pairedProduct ? (
+                          <>
+                            {/* Upper Garment Detail - Top Left */}
+                            <div className="absolute top-20 left-4 z-10 max-w-[150px] sm:max-w-[200px]">
+                              <div className="bg-white/90 backdrop-blur-lg p-3 rounded-2xl shadow-lg border border-white/50">
+                                <p className="text-[10px] text-black/50 uppercase tracking-widest font-bold">
+                                  {product.description ? product.description.split('-')[0] : 'Brand'}
+                                </p>
+                                <h3 className="text-sm font-bold text-black truncate leading-tight">
+                                  {product.title}
+                                </h3>
+                                <p className="text-xs font-medium text-black/80 mt-1">
+                                  {formatPrice(product.price)}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Lower Garment Detail - Bottom Left */}
+                            <div className="absolute bottom-4 left-4 z-10 max-w-[150px] sm:max-w-[200px]">
+                              <div className="bg-white/90 backdrop-blur-lg p-3 rounded-2xl shadow-lg border border-white/50">
+                                <p className="text-[10px] text-black/50 uppercase tracking-widest font-bold">
+                                  {product.pairedProduct.description ? product.pairedProduct.description.split('-')[0] : 'Brand'}
+                                </p>
+                                <h3 className="text-sm font-bold text-black truncate leading-tight">
+                                  {product.pairedProduct.title}
+                                </h3>
+                                <p className="text-xs font-medium text-black/80 mt-1">
+                                  {formatPrice(product.pairedProduct.price)}
+                                </p>
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          /* Standard Single Garment Detail - Bottom Left */
+                          <div className="absolute bottom-4 left-4 z-10 max-w-[150px] sm:max-w-[200px]">
+                            <div className="bg-white/90 backdrop-blur-lg p-3 rounded-2xl shadow-lg border border-white/50">
+                              <p className="text-[10px] text-black/50 uppercase tracking-widest font-bold">
+                                {product.description ? product.description.split('-')[0] : 'Brand'}
+                              </p>
+                              <h3 className="text-sm font-bold text-black truncate leading-tight">
+                                {product.title}
+                              </h3>
+                              <p className="text-xs font-medium text-black/80 mt-1">
+                                {formatPrice(product.price)}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </>
                     )}
 
                     {/* Fit Check Button - Bottom Right */}
@@ -389,8 +284,8 @@ const TryOnResultsScreen = () => {
                         onClick={handleFitCheck}
                         disabled={!userMeasurements}
                         className={`flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-3 rounded-full shadow-lg transition-all active:scale-95 ${userMeasurements
-                            ? 'bg-black text-white hover:bg-neutral-800'
-                            : 'bg-gray-100 text-gray-400 cursor-wait'
+                          ? 'bg-black text-white hover:bg-neutral-800'
+                          : 'bg-gray-100 text-gray-400 cursor-wait'
                           }`}
                       >
                         {!userMeasurements ? (

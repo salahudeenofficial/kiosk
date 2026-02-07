@@ -5,6 +5,7 @@ export type Product = {
   image: string
   description: string
   sizes: string[]
+  pairedProduct?: Product
 }
 
 const sampleProducts: Product[] = [

@@ -578,11 +578,24 @@ export const mockKioskApi = {
     },
 
     // VTON request
-    async requestVton(garmentIds: number[]) {
+    async requestVton(garmentIds: number[], stitch: boolean = false) {
         await randomDelay()
         maybeThrowError()
 
-        console.log('[MockAPI] VTON requested for garments:', garmentIds)
+        console.log('[MockAPI] VTON requested for garments:', garmentIds, 'stitch:', stitch)
+
+        if (stitch) {
+            return {
+                session_id: mockSessionState.sessionId!,
+                jobs: [{
+                    job_id: `mock_job_stitched_${Date.now()}`,
+                    garment_ids: garmentIds,
+                    stitch: true,
+                    status: 'QUEUED',
+                }],
+                current_step: 'results',
+            }
+        }
 
         return {
             session_id: mockSessionState.sessionId!,
