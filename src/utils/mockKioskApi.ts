@@ -662,6 +662,71 @@ export const mockKioskApi = {
         }
     },
 
+    // Get size recommendation
+    async getSizeRecommendation(productId: number): Promise<any> {
+        await randomDelay()
+        maybeThrowError()
+
+        const product = MOCK_PRODUCTS.find(p => p.productId === productId)
+        if (!product) {
+            throw new Error('Product not found')
+        }
+
+        console.log('[MockAPI] Size recommendation for:', productId)
+
+        return {
+            product_id: productId,
+            recommended_size: 'M',
+            confidence: 0.92,
+            fit_type: 'regular',
+            all_sizes: [
+                {
+                    size: 'S',
+                    score: 0.689,
+                    fit: 'tight',
+                    details: {
+                        chest: { user: 94.0, chart: 90.0, diff_cm: 4.0, fit: 'tight' },
+                        waist: { user: 80.0, chart: 76.0, diff_cm: 4.0, fit: 'tight' },
+                        shoulder: { user: 42.0, chart: 40.0, diff_cm: 2.0, fit: 'tight' }
+                    }
+                },
+                {
+                    size: 'M',
+                    score: 0.952,
+                    fit: 'regular',
+                    details: {
+                        chest: { user: 94.0, chart: 96.0, diff_cm: -2.0, fit: 'good' },
+                        waist: { user: 80.0, chart: 82.0, diff_cm: -2.0, fit: 'good' },
+                        shoulder: { user: 42.0, chart: 42.0, diff_cm: 0.0, fit: 'good' }
+                    }
+                },
+                {
+                    size: 'L',
+                    score: 0.823,
+                    fit: 'loose',
+                    details: {
+                        chest: { user: 94.0, chart: 102.0, diff_cm: -8.0, fit: 'loose' },
+                        waist: { user: 80.0, chart: 88.0, diff_cm: -8.0, fit: 'loose' },
+                        shoulder: { user: 42.0, chart: 44.0, diff_cm: -2.0, fit: 'loose' }
+                    }
+                },
+                {
+                    size: 'XL',
+                    score: 0.75,
+                    fit: 'loose',
+                    details: {
+                        chest: { user: 94.0, chart: 108.0, diff_cm: -14.0, fit: 'loose' },
+                        waist: { user: 80.0, chart: 94.0, diff_cm: -14.0, fit: 'loose' },
+                        shoulder: { user: 42.0, chart: 46.0, diff_cm: -4.0, fit: 'loose' }
+                    }
+                }
+            ],
+            matched_measurements: ['chest', 'waist', 'shoulder'],
+            missing_measurements: [],
+            measurement_status: 'success'
+        }
+    },
+
     // Session completion
     async completeSession() {
         await randomDelay()

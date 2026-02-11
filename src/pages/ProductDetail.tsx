@@ -56,6 +56,7 @@ const ProductDetail = () => {
 
       try {
         const productData = await unifiedKioskApi.getProductDetails(productId)
+        console.log('[ProductDetail] Loaded product details:', productData)
         setProduct(productData)
       } catch (err) {
         console.error('Failed to load product:', err)
@@ -197,6 +198,37 @@ const ProductDetail = () => {
                       {size}
                     </span>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* Size Chart Table */}
+            {product.sizeChart && product.sizeChart.available && (
+              <div className="flex flex-col gap-3">
+                <span className="text-sm font-semibold uppercase text-slate-500 tracking-wide">Size Chart ({product.sizeChart.unit})</span>
+                <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                  <table className="w-full text-sm text-left text-slate-700">
+                    <thead className="bg-slate-50 text-xs text-slate-500 uppercase font-semibold">
+                      <tr>
+                        <th className="px-4 py-3 border-b border-slate-200">Size</th>
+                        {product.sizeChart.measurements.map(m => (
+                          <th key={m} className="px-4 py-3 border-b border-slate-200">{m}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {product.sizeChart.sizes.map(size => (
+                        <tr key={size} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
+                          <td className="px-4 py-3 font-medium text-slate-900">{size}</td>
+                          {product.sizeChart?.measurements.map(m => (
+                            <td key={m} className="px-4 py-3">
+                              {product.sizeChart?.chart[size]?.[m] || '-'}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}

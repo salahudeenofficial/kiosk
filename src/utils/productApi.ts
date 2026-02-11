@@ -76,6 +76,13 @@ export type ProductDetails = {
     name: string
     gender: string
   } | null
+  sizeChart?: {
+    available: boolean
+    sizes: string[]
+    measurements: string[]
+    chart: Record<string, Record<string, number>>
+    unit: string
+  }
 }
 
 export type ProductDetailsResponse = {
@@ -135,7 +142,7 @@ export const productApi = {
       }
 
       const data = await response.json()
-      
+
       if (!data.success || !data.data) {
         throw new Error(data.error?.message || 'Failed to fetch products')
       }
@@ -166,7 +173,7 @@ export const productApi = {
       if (!response.ok) {
         const errorText = await response.text()
         let errorMessage = `API error: ${response.status} ${response.statusText}`
-        
+
         try {
           const errorData = JSON.parse(errorText)
           errorMessage = errorData.error?.message || errorData.message || errorMessage
@@ -176,24 +183,24 @@ export const productApi = {
             errorMessage = errorText
           }
         }
-        
+
         throw new Error(errorMessage)
       }
 
       const data = await response.json()
-      
+
       // Check if request was successful
       if (data.success && data.data && data.data.product) {
         return data.data.product
       }
-      
+
       // Handle error response
       if (data.error) {
         const errorMessage = data.error.message || 'Failed to fetch product details'
         const errorCode = data.error.code || 'UNKNOWN_ERROR'
         throw new Error(`${errorMessage} (Code: ${errorCode})`)
       }
-      
+
       throw new Error('Invalid response format: product data not found')
     } catch (error) {
       console.error('Failed to fetch product details:', {
@@ -201,7 +208,7 @@ export const productApi = {
         url,
         error: error instanceof Error ? error.message : String(error),
       })
-      
+
       // Re-throw with more context
       if (error instanceof Error) {
         throw error

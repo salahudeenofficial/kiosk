@@ -6,7 +6,7 @@
  */
 
 import { kioskApi, type VtonResultEvent, type VtonErrorEvent, type CatalogFiltersResponse } from './kioskApi'
-import { productApi, type ProductDetails } from './productApi'
+import { type ProductDetails } from './productApi'
 import { mockKioskApi, MOCK_CONFIG } from './mockKioskApi'
 import type { KioskSession, KioskConfig } from './config'
 
@@ -185,7 +185,17 @@ export const unifiedKioskApi = {
         if (shouldUseMock()) {
             return mockKioskApi.getProductDetails(productId)
         }
-        return productApi.getProductDetails(productId)
+        return kioskApi.getProductDetails(productId)
+    },
+
+    // Size Recommendation
+    async getSizeRecommendation(productId: number): Promise<any> {
+        console.log(`[UnifiedAPI] getSizeRecommendation - mode: ${shouldUseMock() ? 'MOCK' : 'REAL'}`)
+
+        if (shouldUseMock()) {
+            return mockKioskApi.getSizeRecommendation(productId)
+        }
+        return kioskApi.getSizeRecommendation(productId)
     },
 
     // VTON

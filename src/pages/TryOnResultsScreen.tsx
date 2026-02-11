@@ -122,11 +122,21 @@ const TryOnResultsScreen = () => {
   }
 
   const handleFitCheck = () => {
-    navigate('/fit-check')
+    const currentJob = jobs[activeIndex]
+    if (!currentJob) return
+
+    const product = selectedProducts.find(p => String(p.id) === currentJob.garment_id)
+    if (!product) return
+
+    const garmentIds: number[] = [parseInt(product.id)]
+    if (product.pairedProduct) {
+      garmentIds.push(parseInt(product.pairedProduct.id))
+    }
+
+    navigate('/fit-check', { state: { garmentIds } })
   }
 
-  // Get current product details
-  const currentJob = jobs[activeIndex] || jobs[0]
+
 
   if (isLoading && jobs.every(j => !j.imageUrl)) {
     return (

@@ -1,0 +1,34 @@
+Fit Check UI Refactor Log
+=========================
+
+[ ] Phase 1: Modularization of Fit Visualization Components
+    [ ] Step 1: Shoulder Fit Visualizer
+        - Status: Planning
+        - Goal: Create a dedicated component for shoulder fit visualization that reacts to `looseScore`.
+        - Requirements Gathering: Pending user input.
+
+## Luminosity Refinement
+I have smoothed out the luminosity transition by introducing an intermediate "Inner Glow" layer.
+
+- **Outer**: 15px width, 8px blur, opacity 0.6 (Soft background)
+- **Middle**: 8px width, 4px blur, opacity 0.8 (Main body)
+- **Inner**: 4px width, 1.5 blur, opacity 0.9 (The "bridge" between body and core)
+- **Core**: 1.5px width, 0.4px blur, opacity 0.95 (Sharp definition, but not pixel-perfect hard)
+
+This removes the harsh jump in brightness between the core and the glow, creating a much more natural, gas-like neon tube appearance where the light intensity falls off gradually from the center.
+
+## UI Updates
+- Changed Fit Check screen background back to white.
+- Updated text and UI element colors to be compatible with the light theme.
+
+## Male Shoulder Update
+- Updated `MALE_SHOULDER_PATHS` with new coordinates provided by the user.
+
+## Hips and Waist Update
+- Added `MALE_HIPS_PATHS` with path-based coordinates.
+- Updated male waist coordinates in `measurementsConfig`.
+- Updated 'Hips' config to support paths for male model.
+
+## Hips Visualizer Removed
+- Removed 'Hips' from `measurementsConfig`.
+- Removed `MALE_HIPS_PATHS` constant.

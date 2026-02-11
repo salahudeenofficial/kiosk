@@ -16,6 +16,7 @@ import {
     type KioskConfig,
     type KioskSession,
 } from './config'
+import type { ProductDetails } from './productApi'
 
 // API response types
 type ApiResponse<T> = {
@@ -151,6 +152,32 @@ export type VtonErrorEvent = {
 export type VtonUpdateEvent = {
     job_id: string
     status: string
+}
+
+// Size Recommendation Types
+export type SizeRecommendationDetail = {
+    user: number
+    chart: number
+    diff_cm: number
+    fit: 'good' | 'tight' | 'loose'
+}
+
+export type SizeRecommendationOption = {
+    size: string
+    score: number
+    fit: 'regular' | 'tight' | 'loose'
+    details: Record<string, SizeRecommendationDetail>
+}
+
+export type SizeRecommendationResponse = {
+    product_id: number
+    recommended_size: string
+    confidence: number
+    fit_type: 'regular' | 'tight' | 'loose'
+    all_sizes: SizeRecommendationOption[]
+    matched_measurements: string[]
+    missing_measurements: string[]
+    measurement_status: string
 }
 
 // Helper to get auth headers from stored config
@@ -546,8 +573,114 @@ export const kioskApi = {
     },
 
     /**
-     * Request VTON for selected garments
+     * Get size recommendation for a product
      */
+    async getSizeRecommendation(productId: number): Promise<SizeRecommendationResponse> {
+        const session = getStoredSession()
+        if (!session) {
+            throw new Error('No active session')
+        }
+
+        const url = `${getApiUrl(API_CONFIG.ENDPOINTS.KIOSK_SESSIONS)}/${session.sessionId}/size-recommendation?product_id=${productId}`
+
+        try {
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    ...getSessionHeaders(),
+                },
+                credentials: 'include',
+                signal: AbortSignal.timeout(API_CONFIG.TIMEOUT),
+            })
+
+            const data: ApiResponse<SizeRecommendationResponse> = await response.json()
+
+            if (!response.ok || !data.success || !data.data) {
+                throw new Error(data.error?.message || `Size recommendation failed: ${response.status}`)
+            }
+
+            return data.data
+        } catch (error) {
+            console.error('Size recommendation error:', error)
+            throw error
+        }
+    },
+
+    /**
+     * Get product details by productId
+     */
+    async getProductDetails(productId: number): Promise<ProductDetails> {
+        const session = getStoredSession()
+        // We allow unauthenticated access if no session (for browsing before scan), 
+        // but if we have a session we should include it.
+        // If your backend REQUIRES a session for this endpoint, check session here.
+        // Based on docs: "X-Kiosk-ID... OR Authorization: Bearer {JWT_TOKEN}"
+
+        // If we have a session, use session headers (includes token + kiosk headers)
+        // If not, fall back to just kiosk headers
+        let headers: Record<string, string>
+        try {
+            headers = session ? getSessionHeaders() : getKioskHeaders()
+        } catch (e) {
+            // If kiosk not configured, we can't make this call
+            throw new Error('Kiosk not configured')
+        }
+
+        const url = `${getApiUrl(API_CONFIG.ENDPOINTS.KIOSK_CATALOG)}/${productId}`
+
+        try {
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    ...headers,
+                    'Content-Type': 'application/json',
+                },
+                signal: AbortSignal.timeout(API_CONFIG.TIMEOUT),
+            })
+
+            const data: ApiResponse<any> = await response.json()
+
+            if (!response.ok || !data.success || !data.data) {
+                // Check if it's a 404 "Not available at this location" vs "Not found" 
+                const msg = data.error?.message || `Product load failed: ${response.status}`
+                throw new Error(msg)
+            }
+
+            const rawProduct = data.data
+
+            // Map the new API response to the ProductDetails interface expected by the UI
+            // The new API returns `sizeChart` inline, so we map it directly.
+            const product: ProductDetails = {
+                productId: rawProduct.productId,
+                name: rawProduct.name,
+                mrp: rawProduct.mrp,
+                baseColour: rawProduct.baseColour,
+                description: rawProduct.description,
+                materialCare: rawProduct.materialCare,
+                originalUrl: "", // Not in new response, defaulting
+                ratings: rawProduct.ratings,
+                sizes: rawProduct.sizes,
+                imageCount: rawProduct.imageCount,
+                firstImageFilename: rawProduct.images?.[0]?.filename || '',
+                attributes: {}, // Not in new response, defaulting
+                images: rawProduct.images.map((img: any) => ({
+                    filename: img.filename,
+                    url: img.imageUrl, // Presigned URL
+                    order: img.order,
+                    isThumbnail: img.isThumbnail,
+                    isVtonImage: img.isVtonImage
+                })),
+                brand: rawProduct.brand,
+                category: rawProduct.category,
+                sizeChart: rawProduct.sizeChart?.available ? rawProduct.sizeChart : undefined
+            }
+
+            return product
+        } catch (error) {
+            console.error('Product details load error:', error)
+            throw error
+        }
+    },
     async requestVton(garmentIds: number[], stitch: boolean = false): Promise<VtonRequestResponse> {
         const session = getStoredSession()
         if (!session) {
