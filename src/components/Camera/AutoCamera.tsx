@@ -5,6 +5,7 @@ import { captureFrameToDataUrl } from '../../utils/imageUtils'
 import { CaptureOverlay } from './CaptureOverlay'
 import { PoseDetector } from './PoseDetector'
 import PoseValidator from './PoseValidator'
+import { SilhouetteOverlay } from './SilhouetteOverlay'
 
 // Camera zoom level (1.0 = no zoom, 2.0 = 2x zoom, etc.)
 // Adjust this value to control camera zoom
@@ -23,6 +24,7 @@ const AutoCamera = () => {
   const [countdown, setCountdown] = useState<number | null>(null)
   const [_canStartCapture, setCanStartCapture] = useState(false)
   const [_actualResolution, setActualResolution] = useState<string>('')
+  const [isPoseValid, setIsPoseValid] = useState<boolean>(false)
   const [_zoomInfo, setZoomInfo] = useState<string>('')
   const navigate = useNavigate()
   const setUserImage = useKioskStore((state) => state.setUserImage)
@@ -178,6 +180,9 @@ const AutoCamera = () => {
           videoRef.current,
           performance.now(),
         )
+        // Update pose validity state for silhouette color
+        setIsPoseValid(isAPose)
+
         const { stable, progress: poseProgress } =
           validatorRef.current.updatePose(isAPose)
         setProgress(poseProgress)
@@ -251,6 +256,7 @@ const AutoCamera = () => {
           muted
         />
         <canvas ref={canvasRef} className="hidden" />
+        <SilhouetteOverlay isValid={isPoseValid} />
         <CaptureOverlay
           status={countdown !== null ? `${countdown}` : status}
           progress={countdown !== null ? (5 - (countdown || 0)) / 5 : progress}
