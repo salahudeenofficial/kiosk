@@ -29,6 +29,10 @@ This removes the harsh jump in brightness between the core and the glow, creatin
 - Updated male waist coordinates in `measurementsConfig`.
 - Updated 'Hips' config to support paths for male model.
 
-## Hips Visualizer Removed
-- Removed 'Hips' from `measurementsConfig`.
-- Removed `MALE_HIPS_PATHS` constant.
+
+## Stick Figure UI Refactor (Unisex)
+- **Arms**: Made parallel to the body (vertical), increased width to 22px, and aligned starting position with shoulders.
+- **Legs**: Changed from rectangles to tapered paths (trapezoids) for definition.
+- **Stance**: Narrowed the stance (gap reduced to 8px), and aligned leg top width perfectly with hips bottom width.
+- **Unisex Silhouette**: Squared the torso (reduced hourglass shape) by adjusting shoulder, chest, waist, and hip dimensions to be more blocky/rectangular.
+- **Refinement**: Translated arms upward (yShoulderStart - 4) and removed geometric gap between hips and legs for uniform spacing.

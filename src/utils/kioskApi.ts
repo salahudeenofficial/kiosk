@@ -171,13 +171,14 @@ export type SizeRecommendationOption = {
 
 export type SizeRecommendationResponse = {
     product_id: number
-    recommended_size: string
+    recommended_size: string | null
     confidence: number
-    fit_type: 'regular' | 'tight' | 'loose'
+    fit_type: 'regular' | 'tight' | 'loose' | null
     all_sizes: SizeRecommendationOption[]
     matched_measurements: string[]
     missing_measurements: string[]
     measurement_status: string
+    user_measurements?: Record<string, number> | null
 }
 
 // Helper to get auth headers from stored config

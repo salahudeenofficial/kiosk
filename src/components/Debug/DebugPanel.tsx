@@ -109,7 +109,29 @@ const DebugPanel = () => {
         })
         storeState.setUserGender('male')
         storeState.setUserHeight('175')
-        addLog('info', 'Mock session set')
+
+        // Set mock measurements for FitCheck
+        storeState.setUserMeasurements({
+            'chest circumference': 94.0,
+            'waist circumference': 80.0,
+            'hip circumference': 95.8,
+            'shoulder breadth': 42.0,
+            'arm right length': 58.3,
+            'inside leg height': 95.0,
+            'thigh left circumference': 54.2,
+            'neck circumference': 38.5,
+            'bicep right circumference': 33.0,
+            'calf right circumference': 37.0
+        })
+
+        addLog('info', 'Mock session set with measurements')
+
+        // Auto-enable mock mode
+        if (apiMode !== 'mock') {
+            setApiMode('mock')
+            MOCK_CONFIG.ENABLED = true
+            addLog('info', 'Auto-switched to MOCK mode')
+        }
     }
 
     const handleToggleApiMode = () => {

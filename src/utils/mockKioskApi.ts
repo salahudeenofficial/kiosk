@@ -681,13 +681,25 @@ export const mockKioskApi = {
             fit_type: 'regular',
             all_sizes: [
                 {
+                    size: 'XS',
+                    score: 0.55,
+                    fit: 'tight',
+                    details: {
+                        "chest": { "user": 94, "chart": 86, "diff_cm": 8.0, "fit": "tight" },
+                        "waist": { "user": 80, "chart": 72, "diff_cm": 8.0, "fit": "tight" },
+                        "shoulder_width": { "user": 42, "chart": 38, "diff_cm": 4.0, "fit": "tight" },
+                        "hip": { "user": 95.8, "chart": 90, "diff_cm": 5.8, "fit": "tight" }
+                    }
+                },
+                {
                     size: 'S',
                     score: 0.689,
                     fit: 'tight',
                     details: {
-                        chest: { user: 94.0, chart: 90.0, diff_cm: 4.0, fit: 'tight' },
-                        waist: { user: 80.0, chart: 76.0, diff_cm: 4.0, fit: 'tight' },
-                        shoulder: { user: 42.0, chart: 40.0, diff_cm: 2.0, fit: 'tight' }
+                        "chest": { "user": 94, "chart": 91, "diff_cm": 3.0, "fit": "tight" },
+                        "waist": { "user": 80, "chart": 76, "diff_cm": 4.0, "fit": "tight" },
+                        "shoulder_width": { "user": 42, "chart": 40, "diff_cm": 2.0, "fit": "tight" },
+                        "hip": { "user": 95.8, "chart": 94, "diff_cm": 1.8, "fit": "good" }
                     }
                 },
                 {
@@ -695,9 +707,11 @@ export const mockKioskApi = {
                     score: 0.952,
                     fit: 'regular',
                     details: {
-                        chest: { user: 94.0, chart: 96.0, diff_cm: -2.0, fit: 'good' },
-                        waist: { user: 80.0, chart: 82.0, diff_cm: -2.0, fit: 'good' },
-                        shoulder: { user: 42.0, chart: 42.0, diff_cm: 0.0, fit: 'good' }
+                        "chest": { "user": 94, "chart": 96, "diff_cm": -2.0, "fit": "good" },
+                        "waist": { "user": 80, "chart": 81, "diff_cm": -1.0, "fit": "good" },
+                        "shoulder_width": { "user": 42, "chart": 42, "diff_cm": 0.0, "fit": "good" },
+                        "hip": { "user": 95.8, "chart": 98, "diff_cm": -2.2, "fit": "good" },
+                        "thigh": { "user": 54.2, "chart": 56, "diff_cm": -1.8, "fit": "good" }
                     }
                 },
                 {
@@ -705,9 +719,11 @@ export const mockKioskApi = {
                     score: 0.823,
                     fit: 'loose',
                     details: {
-                        chest: { user: 94.0, chart: 102.0, diff_cm: -8.0, fit: 'loose' },
-                        waist: { user: 80.0, chart: 88.0, diff_cm: -8.0, fit: 'loose' },
-                        shoulder: { user: 42.0, chart: 44.0, diff_cm: -2.0, fit: 'loose' }
+                        "chest": { "user": 94, "chart": 102, "diff_cm": -8.0, "fit": "loose" },
+                        "waist": { "user": 80, "chart": 86, "diff_cm": -6.0, "fit": "loose" },
+                        "shoulder_width": { "user": 42, "chart": 44, "diff_cm": -2.0, "fit": "loose" },
+                        "hip": { "user": 95.8, "chart": 102, "diff_cm": -6.2, "fit": "loose" },
+                        "thigh": { "user": 54.2, "chart": 60, "diff_cm": -5.8, "fit": "loose" }
                     }
                 },
                 {
@@ -715,15 +731,27 @@ export const mockKioskApi = {
                     score: 0.75,
                     fit: 'loose',
                     details: {
-                        chest: { user: 94.0, chart: 108.0, diff_cm: -14.0, fit: 'loose' },
-                        waist: { user: 80.0, chart: 94.0, diff_cm: -14.0, fit: 'loose' },
-                        shoulder: { user: 42.0, chart: 46.0, diff_cm: -4.0, fit: 'loose' }
+                        "chest": { "user": 94, "chart": 108, "diff_cm": -14.0, "fit": "loose" },
+                        "waist": { "user": 80, "chart": 91, "diff_cm": -11.0, "fit": "loose" },
+                        "shoulder_width": { "user": 42, "chart": 46, "diff_cm": -4.0, "fit": "loose" },
+                        "hip": { "user": 95.8, "chart": 106, "diff_cm": -10.2, "fit": "loose" }
                     }
                 }
             ],
-            matched_measurements: ['chest', 'waist', 'shoulder'],
-            missing_measurements: [],
-            measurement_status: 'success'
+            matched_measurements: ['chest', 'waist', 'shoulder_width', 'hip'],
+            missing_measurements: ['inseam'],
+            measurement_status: 'success',
+            user_measurements: {
+                "chest circumference": 94.0,
+                "waist circumference": 80.0,
+                "hip circumference": 95.8,
+                "shoulder breadth": 42.0,
+                "arm right length": 58.3,
+                "inside leg height": 95.0,
+                "thigh left circumference": 54.2,
+                "neck circumference": 38.5,
+                "height": 175.0
+            }
         }
     },
 
