@@ -36,3 +36,8 @@ This removes the harsh jump in brightness between the core and the glow, creatin
 - **Stance**: Narrowed the stance (gap reduced to 8px), and aligned leg top width perfectly with hips bottom width.
 - **Unisex Silhouette**: Squared the torso (reduced hourglass shape) by adjusting shoulder, chest, waist, and hip dimensions to be more blocky/rectangular.
 - **Refinement**: Translated arms upward (yShoulderStart - 4) and removed geometric gap between hips and legs for uniform spacing.
+
+## Stick Figure UI Refactor (Proportional Update)
+- **Body Width Reduction**: Reduced shoulder, chest, waist, and hip widths by ~20-25% to be more proportional to head/neck.
+- **Leg Width Reduction**: Narrowed legs (top width 42 -> 36) and tapering for a slimmer look.
+- **Arm Alignment**: Aligned arm start position vertically with the shoulder top edge (removed upward offset).

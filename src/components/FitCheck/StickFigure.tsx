@@ -86,9 +86,9 @@ const StickFigure: React.FC<StickFigureProps> = ({ scores, gender: _gender = 'fe
     const armGap = 8;
 
     // Leg Dimensions (Tapered)
-    const legTopWidth = 42; // Matches new hips bottom width (46*2 = 92 -> 42*2 + 8 = 92)
-    const legKneeWidth = 26;
-    const legAnkleWidth = 22;
+    const legTopWidth = 36; // Matches new hips bottom width (40*2 = 80 -> 36*2 + 8 = 80)
+    const legKneeWidth = 22;
+    const legAnkleWidth = 18;
 
     const upperLegLength = 100;
     const lowerLegLength = 100;
@@ -96,20 +96,20 @@ const StickFigure: React.FC<StickFigureProps> = ({ scores, gender: _gender = 'fe
 
     // Positioning
     // Ensure ~20% difference (was >30%)
-    const shoulderParams = { top: 50, bottom: 46 };  // Broad shoulders
-    const chestParams = { top: 46, bottom: 44 };     // Gentle taper
-    const waistParams = { top: 44, bottom: 44 };     // Straight waist (Unisex)
-    const hipsParams = { top: 44, bottom: 46 };      // Slight flare, mostly straight
+    const shoulderParams = { top: 40, bottom: 38 };  // Reduced width
+    const chestParams = { top: 38, bottom: 36 };     // Gentle taper
+    const waistParams = { top: 36, bottom: 36 };     // Straight waist (Unisex)
+    const hipsParams = { top: 36, bottom: 40 };      // Slight flare, mostly straight
 
     // Arm positioning
     const armPivotOffset = shoulderParams.top + 13; // Positioned relative to shoulder edge
     // "Start from same line vertically" -> Align y almost with shoulder start
-    const yArmStart = yShoulderStart - 4; // Moved up "a tad bit" relative to shoulder (start slightly above)
+    const yArmStart = yShoulderStart; // Aligned with shoulder start
     const leftArmPivot = { x: centerX - armPivotOffset, y: yArmStart };
     const rightArmPivot = { x: centerX + armPivotOffset, y: yArmStart };
 
     // Leg positioning - adjusted for hips
-    const legOffset = 25; // (legGap + legTopWidth) / 2 -> (8 + 42) / 2 = 25
+    const legOffset = 22; // (legGap + legTopWidth) / 2 -> (8 + 36) / 2 = 22
 
     return (
         <svg
