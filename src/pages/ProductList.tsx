@@ -13,7 +13,9 @@ import { type ProductListItem } from '../utils/productApi'
 import { unifiedKioskApi } from '../utils/unifiedKioskApi'
 import type { CatalogFilterBrand, CatalogFilterCategory, VtonJob } from '../utils/kioskApi'
 
+
 import PairingModal, { isEligibleForPairing } from '../components/PairingModal'
+import tuckLogo from '../assets/tuck_logo.png'
 
 // Skeleton Card Component - Responsive fixed height matching ProductCard
 const SkeletonCard = () => (
@@ -364,11 +366,9 @@ const ProductList = () => {
       //   return next
       // })
     } else {
-      // Add if not selected (max 3)
-      if (selectedProducts.length < 3) {
-        if (addProductToSelection(product)) {
-          triggerVton([product.productId], false)
-        }
+      // Add if not selected
+      if (addProductToSelection(product)) {
+        triggerVton([product.productId], false)
       }
     }
   }
@@ -418,32 +418,29 @@ const ProductList = () => {
     loadProducts()
   }
 
-  const handleEndSession = async () => {
-    try {
-      await unifiedKioskApi.completeSession()
-    } catch (err) {
-      console.error('Failed to complete session:', err)
-    }
-    useKioskStore.getState().resetSession()
-    navigate('/')
-  }
+
 
   return (
     <div className="fixed inset-0 bg-white text-slate-900 overflow-hidden z-50 min-h-screen w-full flex flex-col">
       {/* End Session Button */}
-      <button
-        onClick={handleEndSession}
-        className="fixed top-6 right-6 z-[70] bg-white/80 hover:bg-white text-slate-500 hover:text-red-500 p-3 rounded-full shadow-lg backdrop-blur-md border border-slate-200 transition-all"
-        aria-label="End Session"
-      >
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <line x1="18" y1="6" x2="6" y2="18"></line>
-          <line x1="6" y1="6" x2="18" y2="18"></line>
-        </svg>
-      </button>
+      {/* End Session Button REMOVED as per request */}
+
+
 
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
-        <div className="flex flex-col gap-[3%] px-[4%] pt-[80px] pb-[120px] max-w-[1920px] mx-auto min-h-full">
+        <div className="flex flex-col gap-[3%] px-[4%] pt-0 pb-[120px] max-w-[1920px] mx-auto min-h-full">
+          {/* Brand Notch - Static */}
+          <div className="flex justify-center w-full mb-8 -mt-2">
+            <div className="relative">
+              <svg width="184" height="39" viewBox="0 0 184 39" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M0.852942 0.219738C-2.15621 -7.02437 3.16713 -15 11.0114 -15H172.558C180.266 -15 185.583 -7.27818 182.835 -0.0772257L170.62 31.9228C168.993 36.1845 164.905 39 160.343 39H24.304C19.8589 39 15.8507 36.3247 14.1455 32.2197L0.852942 0.219738Z" fill="black" />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center pt-1">
+                <img src={tuckLogo} alt="Tuck" className="h-6 object-contain brightness-0 invert" />
+              </div>
+            </div>
+          </div>
+
           {/* Header */}
           <div className="flex flex-col gap-[3%]">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-[2%]">
@@ -461,21 +458,27 @@ const ProductList = () => {
             </div>
 
             {/* Search and Controls */}
-            <div className="flex flex-col sm:flex-row gap-[2%] items-stretch sm:items-center py-4">
-              <div className="flex-1">
-                <SearchBar value={search} onChange={setSearch} />
+            <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center py-2 w-full md:w-1/2">
+              <div className="w-1/2">
+                <SearchBar value={search} onChange={setSearch} className="h-[28px]" inputClassName="!rounded-[1px] !text-xs !py-0 !pl-10 !h-full" />
               </div>
-              <div className="flex gap-[2%] h-[56px]">
+              <div className="flex gap-2 h-[28px]">
                 <Button
-                  className="!bg-white !text-slate-900 !border !border-slate-300 hover:!bg-slate-50 !w-[56px] !p-0 flex items-center justify-center !rounded-xl"
+                  className="!bg-white !text-slate-900 hover:!bg-slate-50 !w-[28px] !h-[28px] !p-0 flex items-center justify-center !rounded-[1px] !border-none !shadow-none"
                   onClick={() => setFiltersDrawerOpen(true)}
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="24" height="24" rx="1" fill="#292526" />
+                    <path d="M16 10H14C13.7239 10 13.5 9.77614 13.5 9.5C13.5 9.22386 13.7239 9 14 9H16C16.2761 9 16.5 9.22386 16.5 9.5C16.5 9.77614 16.2761 10 16 10Z" fill="#FDFDFD" />
+                    <path d="M10 10H8C7.72386 10 7.5 9.77614 7.5 9.5C7.5 9.22386 7.72386 9 8 9H10C10.2761 9 10.5 9.22386 10.5 9.5C10.5 9.77614 10.2761 10 10 10Z" fill="#FDFDFD" />
+                    <path d="M11.5 11.5C10.6716 11.5 10 10.8284 10 10C10 9.17157 10.6716 8.5 11.5 8.5C12.3284 8.5 13 9.17157 13 10C13 10.8284 12.3284 11.5 11.5 11.5ZM11.5 9C10.9477 9 10.5 9.44772 10.5 10C10.5 10.5523 10.9477 11 11.5 11C12.0523 11 12.5 10.5523 12.5 10C12.5 9.44772 12.0523 9 11.5 9Z" fill="#FDFDFD" />
+                    <path d="M16 15H14C13.7239 15 13.5 14.7761 13.5 14.5C13.5 14.2239 13.7239 14 14 14H16C16.2761 14 16.5 14.2239 16.5 14.5C16.5 14.7761 16.2761 15 16 15Z" fill="#FDFDFD" />
+                    <path d="M10 15H8C7.72386 15 7.5 14.7761 7.5 14.5C7.5 14.2239 7.72386 14 8 14H10C10.2761 14 10.5 14.2239 10.5 14.5C10.5 14.7761 10.2761 15 10 15Z" fill="#FDFDFD" />
+                    <path d="M13.5 16.5C12.6716 16.5 12 15.8284 12 15C12 14.1716 12.6716 13.5 13.5 13.5C14.3284 13.5 15 14.1716 15 15C15 15.8284 14.3284 16.5 13.5 16.5ZM13.5 14C12.9477 14 12.5 14.4477 12.5 15C12.5 15.5523 12.9477 16 13.5 16C14.0523 16 14.5 15.5523 14.5 15C14.5 14.4477 14.0523 14 13.5 14Z" fill="#FDFDFD" />
                   </svg>
                 </Button>
                 <div className="h-full">
-                  <SortDropdown value={sortOption.value} onChange={setSortOption} />
+                  <SortDropdown value={sortOption.value} onChange={setSortOption} className="!rounded-[1px] !text-xs !px-2" />
                 </div>
               </div>
             </div>
@@ -483,25 +486,25 @@ const ProductList = () => {
             {/* Active Filters */}
             {(userGender || filters.gender || filters.category_id || filters.brand_id || filters.min_price || filters.max_price) && (
               <div className="flex items-center gap-[2%] flex-wrap mb-4">
-                <span className="text-sm text-slate-600">Active filters:</span>
+                {/* Active filters label removed */}
                 {(filters.gender || userGender) && (
-                  <span className="px-[2%] py-[1%] bg-slate-100 text-slate-700 rounded-lg text-xs">
+                  <span className="px-[2%] py-[1%] bg-white text-black border border-black rounded-[1px] text-xs">
                     {filters.gender ||
                       (userGender === 'male' ? 'Men' : userGender === 'female' ? 'Women' : '')}
                   </span>
                 )}
                 {filters.category_id && (
-                  <span className="px-[2%] py-[1%] bg-slate-100 text-slate-700 rounded-lg text-xs">
+                  <span className="px-[2%] py-[1%] bg-white text-black border border-black rounded-[1px] text-xs">
                     {availableCategories.find((c) => c.id === filters.category_id)?.name || 'Category'}
                   </span>
                 )}
                 {filters.brand_id && (
-                  <span className="px-[2%] py-[1%] bg-slate-100 text-slate-700 rounded-lg text-xs">
+                  <span className="px-[2%] py-[1%] bg-white text-black border border-black rounded-[1px] text-xs">
                     {availableBrands.find((b) => b.id === filters.brand_id)?.name || 'Brand'}
                   </span>
                 )}
                 {(filters.min_price || filters.max_price) && (
-                  <span className="px-[2%] py-[1%] bg-slate-100 text-slate-700 rounded-lg text-xs">
+                  <span className="px-[2%] py-[1%] bg-white text-black border border-black rounded-[1px] text-xs">
                     ₹{filters.min_price || 0} - ₹{filters.max_price || '∞'}
                   </span>
                 )}
@@ -624,86 +627,100 @@ const ProductList = () => {
       </div>
 
       {/* Floating Selection Bar - Fixed at bottom */}
+      {/* New Result Bar - Top Right */}
       <AnimatePresence>
-        <motion.div
-          initial={{ y: 100, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-          className="fixed bottom-6 left-0 right-0 mx-auto z-[60] w-auto max-w-fit px-4"
-        >
-          <div className="relative overflow-hidden rounded-2xl shadow-2xl border border-transparent bg-[#959595] p-3">
-            <div className="flex items-center gap-3">
-              {[0, 1, 2].map((i) => {
-                const product = selectedProducts[i]
-                const jobStatus = product ? vtonJobs[product.id] : null
-                const isLoading = jobStatus?.status === 'RUNNING' || jobStatus?.status === 'PENDING' || jobStatus?.status === 'QUEUED' || jobStatus?.status === 'WAITING_MASK'
-                const isSuccess = jobStatus?.status === 'SUCCESS' || (product && vtonJobs[product.id]?.imageUrl)
+        {selectedProducts.length > 0 && (
+          <motion.div
+            initial={{ y: -100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -100, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+            className="fixed top-[4%] right-[4%] z-[60]"
+          >
+            <div
+              className="group relative bg-black text-white rounded-full p-2 pl-2 pr-2 flex items-center shadow-2xl gap-3 cursor-pointer overflow-visible"
+              onClick={() => handleTryOnButton(0)}
+            >
+              {/* Left Text Button with Border */}
+              <div className="flex flex-col items-center justify-center leading-none border border-white rounded-[32px] px-5 py-2.5 ml-1">
+                <span className="text-[10px] text-gray-300 font-medium uppercase tracking-widest mb-0.5">View</span>
+                <span className="text-sm font-bold whitespace-nowrap">My Try On</span>
+              </div>
 
-                return (
-                  <div
-                    key={i}
-                    className={`
-                      relative w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden border-2 transition-all duration-300
-                      ${product
-                        ? 'border-slate-800 bg-white shadow-md'
-                        : 'border-slate-200 bg-slate-50 border-dashed'
-                      }
-                      ${isSuccess ? 'cursor-pointer hover:scale-105' : ''}
-                    `}
-                    onClick={() => {
-                      if (isSuccess) {
-                        handleTryOnButton(i)
-                      }
-                    }}
-                  >
-                    {product ? (
-                      <>
+              {/* Right Images */}
+              <div className="flex items-center pl-2">
+                <div className="flex -space-x-3 items-center">
+                  {/* Items - Show last 3 (newest) */}
+                  {selectedProducts.slice(-3).map((product, idx) => {
+                    const jobStatus = vtonJobs[product.id]
+                    const isLoading = jobStatus?.status === 'RUNNING' || jobStatus?.status === 'PENDING' || jobStatus?.status === 'QUEUED' || jobStatus?.status === 'WAITING_MASK'
+                    const isSuccess = jobStatus?.status === 'SUCCESS' || (product && vtonJobs[product.id]?.imageUrl)
+
+                    return (
+                      <div
+                        key={product.id}
+                        className="relative w-10 h-10 rounded-full border-2 border-slate-800 bg-white flex-shrink-0"
+                        style={{ zIndex: idx + 1 }}
+                      >
                         <img
                           src={product.image}
                           alt={product.title}
-                          className={`w-full h-full object-cover transition-opacity duration-300 ${isLoading ? 'opacity-50' : 'opacity-100'}`}
+                          className="w-full h-full object-cover rounded-full"
                         />
 
-                        {/* Loading Overlay */}
+                        {/* Loading Spinner - 3/4 Loop */}
                         {isLoading && (
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                            <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          </div>
-                        )}
-
-                        {/* Success Overlay */}
-                        {isSuccess && (
-                          <div className="absolute inset-0 flex items-center justify-center bg-green-500/80 backdrop-blur-[1px]">
-                            <svg
-                              width="24"
-                              height="24"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="white"
-                              strokeWidth="3"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <polyline points="20 6 9 17 4 12" />
+                          <div className="absolute inset-[-4px] rounded-full pointer-events-none">
+                            <svg className="w-full h-full animate-spin" viewBox="0 0 36 36">
+                              {/* Background Circle */}
+                              <path
+                                className="text-transparent"
+                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="3"
+                              />
+                              {/* Progress Circle (3/4) */}
+                              <path
+                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 -11.25 -4.68"
+                                fill="none"
+                                stroke="#22c55e"
+                                strokeWidth="3"
+                                strokeLinecap="round"
+                              />
                             </svg>
                           </div>
                         )}
 
-                        {/* Remove Button (only show if not success/loading or if desired) */}
-                        {/* For this specific request, we focus on the loading/success flow. 
-                            Users can deselect from the grid if needed. */}
-                      </>
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-slate-300">
-                        <span className="text-2xl font-light">+</span>
+                        {/* Success Tick */}
+                        {isSuccess && (
+                          <div className="absolute -top-1 -right-1 z-10">
+                            <div className="w-5 h-5 bg-white rounded-full flex items-center justify-center shadow-sm">
+                              <div className="w-full h-full rounded-full border-2 border-green-500 bg-white flex items-center justify-center">
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                                  <polyline points="20 6 9 17 4 12" />
+                                </svg>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                )
-              })}
+                    )
+                  })}
+
+                  {/* Overflow Indicator */}
+                  {selectedProducts.length > 3 && (
+                    <div
+                      className="relative w-10 h-10 rounded-full bg-slate-100 text-black flex items-center justify-center border-2 border-slate-900 z-0"
+                    >
+                      <span className="font-bold text-xs">+{selectedProducts.length - 3}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
-        </motion.div>
+          </motion.div>
+        )}
       </AnimatePresence>
 
       <PairingModal

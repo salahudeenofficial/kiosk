@@ -111,7 +111,7 @@
 /* Measurement List */
 .fit-list-header {
   display: grid;
-  grid-template-columns: 1.5fr 1fr 1fr 1fr;
+  grid-template-columns: 1.5fr 1fr;
   gap: 0.75rem;
   padding-bottom: 0.75rem;
   margin-bottom: 0.5rem;
@@ -123,15 +123,13 @@
   letter-spacing: 0.03rem;
 }
 
-.fit-list-header>div:nth-child(2),
-.fit-list-header>div:nth-child(3),
-.fit-list-header>div:nth-child(4) {
+.fit-list-header>div:nth-child(2) {
   text-align: center;
 }
 
 .fit-measurement-row {
   display: grid;
-  grid-template-columns: 1.5fr 1fr 1fr 1fr;
+  grid-template-columns: 1.5fr 1fr;
   gap: 0.75rem;
   align-items: center;
   padding: 0.75rem 0;

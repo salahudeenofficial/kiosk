@@ -6,6 +6,8 @@ import { useKioskStore } from '../store/kioskStore'
 import { useNavigate } from 'react-router-dom'
 import { unifiedKioskApi } from '../utils/unifiedKioskApi'
 
+import EndSessionButton from '../components/UI/EndSessionButton'
+
 const UserDetailsScreen = () => {
   const navigate = useNavigate()
   const userGender = useKioskStore((state) => state.userGender)
@@ -36,7 +38,7 @@ const UserDetailsScreen = () => {
     document.addEventListener('webkitfullscreenchange', handleFullscreenChange)
     document.addEventListener('mozfullscreenchange', handleFullscreenChange)
     document.addEventListener('MSFullscreenChange', handleFullscreenChange)
-    
+
     return () => {
       document.removeEventListener('fullscreenchange', handleFullscreenChange)
       document.removeEventListener('webkitfullscreenchange', handleFullscreenChange)
@@ -131,20 +133,20 @@ const UserDetailsScreen = () => {
   return (
     <div className="fixed inset-0 bg-black text-white overflow-y-auto z-50 min-h-screen w-full">
       <MotionFade className="flex flex-col min-h-screen w-full p-[4%] sm:p-[5%] md:p-[6%]">
-        {/* Top bar with back button and fullscreen button */}
+        {/* Top bar with back button, fullscreen button, and end session button */}
         <div className="flex items-center justify-between mb-[3%]">
           <button
             onClick={() => navigate(-1)}
-            className="p-3 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/30 transition-all border border-white/30 shadow-lg"
+            className="p-3 bg-black/40 backdrop-blur-md rounded-full text-white hover:bg-black/60 transition-all border border-white/20 shadow-lg group"
             disabled={loading}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              width="40"
-              height="40"
+              width="24"
+              height="24"
               viewBox="0 0 24 24"
               fill="none"
-              stroke="currentColor"
+              stroke="white"
               strokeWidth="2.5"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -153,36 +155,38 @@ const UserDetailsScreen = () => {
             </svg>
           </button>
 
-          {/* Fullscreen button */}
-          <button
-            onClick={toggleFullscreen}
-            className="text-white text-2xl sm:text-3xl font-light hover:text-white/80 transition-colors p-2 -mr-2 flex items-center justify-center w-10 h-10 rounded-lg hover:bg-white/10"
-            disabled={loading}
-            aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-            title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-          >
-            {isFullscreen ? (
-              // Exit fullscreen icon
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
-              </svg>
-            ) : (
-              // Enter fullscreen icon
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-              </svg>
-            )}
-          </button>
+          <div className="flex items-center gap-4">
+            {/* Fullscreen button */}
+            <button
+              onClick={toggleFullscreen}
+              className="p-3 bg-black/40 backdrop-blur-md rounded-full text-white hover:bg-black/60 transition-all border border-white/20 shadow-lg flex items-center justify-center w-12 h-12"
+              disabled={loading}
+              aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+              title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+            >
+              {isFullscreen ? (
+                // Exit fullscreen icon
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
+                </svg>
+              ) : (
+                // Enter fullscreen icon
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                </svg>
+              )}
+            </button>
+
+            {/* End Session Button */}
+            <EndSessionButton className="!static !m-0 !p-3 !bg-black/40 !backdrop-blur-md !rounded-full !text-white hover:!bg-black/60 hover:!text-red-500 !border-white/20 !shadow-lg w-12 h-12 flex items-center justify-center" />
+          </div>
         </div>
 
         <div className="flex-1 flex flex-col justify-center max-w-2xl mx-auto w-full gap-[8%] sm:gap-[10%]">
           <div className="w-full flex flex-col gap-4">
             <h1 className="text-clamp-title font-bold text-white text-left">
-              Review Your details
+              Let&apos;s Get Started
             </h1>
-            <p className="text-clamp-body text-white/70 text-left">
-              Make sure we&apos;ve got it right for you.
-            </p>
           </div>
 
           <div className="w-full flex flex-col gap-[6%] sm:gap-[8%]">

@@ -69,8 +69,8 @@ const StickFigure: React.FC<StickFigureProps> = ({ scores, gender: _gender = 'fe
     const yShoulderStart = yNeckExactStart + neckHeight;
 
     // Torso Segments Heights
-    const shoulderHeight = 45;
-    const chestHeight = 33; // Reduced to 60% of 55
+    const shoulderHeight = 18; // Reduced to 40% of 45
+    const chestHeight = 60; // Increased by the amount removed from shoulder (27 + 33)
     const waistHeight = 22; // Reduced to 40% of 55
     const hipsHeight = 45;
 
@@ -179,7 +179,7 @@ const StickFigure: React.FC<StickFigureProps> = ({ scores, gender: _gender = 'fe
                 transition={{ duration: 0.5 }}
             />
             {/* Shoulder Measurement Line */}
-            <line x1={centerX - (shoulderParams.top - 5)} y1={yShoulderStart + 22} x2={centerX + (shoulderParams.top - 5)} y2={yShoulderStart + 22} stroke={measurementLineColor} strokeWidth="1" strokeDasharray="4 2" />
+            <line x1={centerX - (shoulderParams.top - 5)} y1={yShoulderStart + 9} x2={centerX + (shoulderParams.top - 5)} y2={yShoulderStart + 9} stroke={measurementLineColor} strokeWidth="1" strokeDasharray="4 2" />
 
 
             {/* --- CHEST (Trapezoid/Rect) --- */}
@@ -193,8 +193,8 @@ const StickFigure: React.FC<StickFigureProps> = ({ scores, gender: _gender = 'fe
             />
             {/* Chest Measurement Line */}
             <line
-                x1={centerX - (chestParams.top - 5)} y1={yChestStart + 16}
-                x2={centerX + (chestParams.top - 5)} y2={yChestStart + 16}
+                x1={centerX - (chestParams.top - 5)} y1={yChestStart + 30}
+                x2={centerX + (chestParams.top - 5)} y2={yChestStart + 30}
                 stroke={measurementLineColor} strokeWidth="1" strokeDasharray="4 2"
             />
 

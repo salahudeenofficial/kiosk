@@ -22,7 +22,7 @@ type SortDropdownProps = {
   onChange: (option: SortOption) => void
 }
 
-const SortDropdown = ({ value, onChange }: SortDropdownProps) => {
+const SortDropdown = ({ value, onChange, className = '' }: SortDropdownProps & { className?: string }) => {
   const [isOpen, setIsOpen] = useState(false)
   const selectedOption = SORT_OPTIONS.find((opt) => opt.value === value) || SORT_OPTIONS[0]
 
@@ -30,7 +30,7 @@ const SortDropdown = ({ value, onChange }: SortDropdownProps) => {
     <div className="relative h-full">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="h-full flex items-center justify-between gap-3 px-4 bg-white border border-slate-300 rounded-xl min-w-[160px] text-slate-900 font-semibold hover:bg-slate-50 transition-colors"
+        className={`h-full flex items-center justify-between gap-3 px-4 bg-white border border-slate-300 min-w-[160px] text-slate-900 font-semibold hover:bg-slate-50 transition-colors ${className || 'rounded-xl'}`}
       >
         <span>{selectedOption?.label || 'Sort By'}</span>
         <svg

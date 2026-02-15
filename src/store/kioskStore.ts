@@ -117,8 +117,8 @@ export const useKioskStore = create<KioskState>()(
         const current = get().selectedProducts
         // Check if already selected
         if (current.some((p) => p.id === product.id)) return
-        // Limit to 3 products
-        if (current.length >= 3) return
+        // Limit removed for infinite try-on
+        // if (current.length >= 3) return
         set({ selectedProducts: [...current, product] })
       },
       removeSelectedProduct: (id) =>

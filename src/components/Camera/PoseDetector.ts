@@ -10,7 +10,6 @@ export interface PoseResult {
   feedback: string
 }
 
-// MediaPipe landmark indices
 const NOSE = 0
 const LEFT_SHOULDER = 11
 const RIGHT_SHOULDER = 12
@@ -23,10 +22,8 @@ const RIGHT_HIP = 24
 const LEFT_ANKLE = 27
 const RIGHT_ANKLE = 28
 
-// Head + toe framing check (full body must be in frame)
 const FRAMING_LANDMARKS = [NOSE, LEFT_ANKLE, RIGHT_ANKLE]
 
-// Arm pose landmarks (used for A-pose geometry)
 const ARM_LANDMARKS = [
   LEFT_SHOULDER,
   RIGHT_SHOULDER,
@@ -38,14 +35,10 @@ const ARM_LANDMARKS = [
   RIGHT_HIP,
 ]
 
-// A-pose thresholds
-const ARM_ANGLE_MIN = 20
-const ARM_ANGLE_MAX = 60
-const ELBOW_STRAIGHTNESS_MIN = 140
+const ARM_ANGLE_MIN = 25
+const ARM_ANGLE_MAX = 70
+const ELBOW_STRAIGHTNESS_MIN = 135
 const VISIBILITY_THRESHOLD = 0.5
-
-// Normalized coordinate bounds — landmark must be this far inside the frame
-// to count as "in frame" (0.0 = edge, 1.0 = opposite edge)
 const FRAME_MARGIN = 0.03
 const FRAME_MIN = FRAME_MARGIN
 const FRAME_MAX = 1 - FRAME_MARGIN
@@ -88,14 +81,14 @@ export class PoseDetector {
 
   detect(video: HTMLVideoElement, timestamp: number): PoseResult {
     if (!this.landmarker || !this.ready) {
-      return { isAPose: false, confidence: 0, feedback: 'Loading pose detector…' }
+      return { isAPose: false, confidence: 0, feedback: 'LOADING...' }
     }
 
     let result: PoseLandmarkerResult
     try {
       result = this.landmarker.detectForVideo(video, timestamp)
     } catch {
-      return { isAPose: false, confidence: 0, feedback: 'Detection error' }
+      return { isAPose: false, confidence: 0, feedback: 'ERROR' }
     }
 
     if (
@@ -104,15 +97,14 @@ export class PoseDetector {
       !result.landmarks ||
       result.landmarks.length === 0
     ) {
-      return { isAPose: false, confidence: 0, feedback: 'No person detected' }
+      return { isAPose: false, confidence: 0, feedback: 'NO PERSON DETECTED' }
     }
 
     const world = result.worldLandmarks[0]
     const normalized = result.landmarks[0]
+    const issues: Set<string> = new Set()
 
-    // Framing check: head and feet must actually be inside the frame
-    // visibility alone is unreliable — MediaPipe predicts off-screen landmarks
-    // with high visibility. Check normalized x,y are within bounds.
+    // 1. Framing Check (Head and Feet in bounds)
     for (const idx of FRAMING_LANDMARKS) {
       const lm = normalized[idx]
       const outOfFrame =
@@ -124,16 +116,13 @@ export class PoseDetector {
         lm.y > FRAME_MAX
 
       if (outOfFrame) {
-        const part = idx === NOSE ? 'head' : 'feet'
-        return {
-          isAPose: false,
-          confidence: 0,
-          feedback: `Step back — your ${part} must be in frame`,
-        }
+        issues.add('OUT OF FRAME')
+        break // One is enough to flag
       }
     }
 
-    // Arm landmark visibility + in-frame check
+    // 2. Arms Visibility Check
+    let armsVisible = true
     for (const idx of ARM_LANDMARKS) {
       const lm = normalized[idx]
       if (
@@ -144,87 +133,92 @@ export class PoseDetector {
         lm.y < FRAME_MIN ||
         lm.y > FRAME_MAX
       ) {
-        return {
-          isAPose: false,
-          confidence: 0,
-          feedback: 'Step back so shoulders and arms are visible',
-        }
+        issues.add('OUT OF FRAME')
+        armsVisible = false
+        break
       }
     }
 
-    // Compute arm angles using worldLandmarks for 3D accuracy
-    const lShoulder = world[LEFT_SHOULDER]
-    const rShoulder = world[RIGHT_SHOULDER]
-    const lElbow = world[LEFT_ELBOW]
-    const rElbow = world[RIGHT_ELBOW]
-    const lWrist = world[LEFT_WRIST]
-    const rWrist = world[RIGHT_WRIST]
-    const lHip = world[LEFT_HIP]
-    const rHip = world[RIGHT_HIP]
+    // 3. Pose/Alignment Check
+    if (armsVisible) {
+      const lShoulder = world[LEFT_SHOULDER]
+      const rShoulder = world[RIGHT_SHOULDER]
+      const lElbow = world[LEFT_ELBOW]
+      const rElbow = world[RIGHT_ELBOW]
+      const lWrist = world[LEFT_WRIST]
+      const rWrist = world[RIGHT_WRIST]
+      const lHip = world[LEFT_HIP]
+      const rHip = world[RIGHT_HIP]
 
-    // Arm angle: angle between shoulder→hip and shoulder→elbow
-    const leftArmAngle = angleBetweenVectors(
-      vec(lShoulder, lHip),
-      vec(lShoulder, lElbow),
-    )
-    const rightArmAngle = angleBetweenVectors(
-      vec(rShoulder, rHip),
-      vec(rShoulder, rElbow),
-    )
+      // Helper to project vectors to 2D (ignore Z-depth)
+      // This prevents "arms forward" (which looks like A-pose in 3D angle) from passing as A-pose.
+      // We want strictly "arms to the side".
+      const to2D = (v: Vec3) => ({ x: v.x, y: v.y, z: 0 })
 
-    // Elbow straightness: angle at elbow (shoulder-elbow-wrist)
-    const leftElbowAngle = angleBetweenVectors(
-      vec(lElbow, lShoulder),
-      vec(lElbow, lWrist),
-    )
-    const rightElbowAngle = angleBetweenVectors(
-      vec(rElbow, rShoulder),
-      vec(rElbow, rWrist),
-    )
+      // Arm angle: angle between shoulder→hip and shoulder→elbow (Calculated in 2D)
+      const leftArmAngle = angleBetweenVectors(
+        to2D(vec(lShoulder, lHip)),
+        to2D(vec(lShoulder, lElbow)),
+      )
+      const rightArmAngle = angleBetweenVectors(
+        to2D(vec(rShoulder, rHip)),
+        to2D(vec(rShoulder, rElbow)),
+      )
 
-    // Check arm angles
-    const leftArmTooLow = leftArmAngle < ARM_ANGLE_MIN
-    const rightArmTooLow = rightArmAngle < ARM_ANGLE_MIN
-    const leftArmTooHigh = leftArmAngle > ARM_ANGLE_MAX
-    const rightArmTooHigh = rightArmAngle > ARM_ANGLE_MAX
+      // Elbow straightness (Calculated in 3D to detect bends in any direction)
+      const leftElbowAngle = angleBetweenVectors(
+        vec(lElbow, lShoulder),
+        vec(lElbow, lWrist),
+      )
+      const rightElbowAngle = angleBetweenVectors(
+        vec(rElbow, rShoulder),
+        vec(rElbow, rWrist),
+      )
 
-    if (leftArmTooLow || rightArmTooLow) {
-      return {
-        isAPose: false,
-        confidence: 0.3,
-        feedback: 'Raise arms slightly away from body',
+      const leftArmTooLow = leftArmAngle < ARM_ANGLE_MIN
+      const rightArmTooLow = rightArmAngle < ARM_ANGLE_MIN
+      const leftArmTooHigh = leftArmAngle > ARM_ANGLE_MAX
+      const rightArmTooHigh = rightArmAngle > ARM_ANGLE_MAX
+      const leftElbowBent = leftElbowAngle < ELBOW_STRAIGHTNESS_MIN
+      const rightElbowBent = rightElbowAngle < ELBOW_STRAIGHTNESS_MIN
+
+      if (leftArmTooLow || rightArmTooLow || leftArmTooHigh || rightArmTooHigh || leftElbowBent || rightElbowBent) {
+        issues.add('MISALIGNED')
       }
+    } else {
+      // Arms not fully visible. Just valid "OUT OF FRAME".
+      // Can't reliably say misaligned.
     }
 
-    if (leftArmTooHigh || rightArmTooHigh) {
-      return {
-        isAPose: false,
-        confidence: 0.3,
-        feedback: 'Lower arms a bit — not quite a T-pose',
+    if (issues.size > 0) {
+      // Prioritize logic:
+      // If both -> "MISALIGNED • OUT OF FRAME"
+      // If just one -> That one.
+      const issueList = Array.from(issues)
+      let feedback = ''
+
+      if (issues.has('MISALIGNED') && issues.has('OUT OF FRAME')) {
+        feedback = 'MISALIGNED • OUT OF FRAME'
+      } else if (issues.has('OUT OF FRAME')) {
+        feedback = 'OUT OF FRAME'
+      } else if (issues.has('MISALIGNED')) {
+        feedback = 'MISALIGNED'
+      } else {
+        feedback = issueList.join(' • ')
       }
-    }
 
-    // Check elbow straightness
-    const leftElbowBent = leftElbowAngle < ELBOW_STRAIGHTNESS_MIN
-    const rightElbowBent = rightElbowAngle < ELBOW_STRAIGHTNESS_MIN
-
-    if (leftElbowBent || rightElbowBent) {
       return {
         isAPose: false,
-        confidence: 0.5,
-        feedback: 'Straighten your arms',
+        confidence: 0,
+        feedback: feedback,
       }
     }
 
     // All checks passed
-    const avgArmAngle = (leftArmAngle + rightArmAngle) / 2
-    const idealCenter = (ARM_ANGLE_MIN + ARM_ANGLE_MAX) / 2
-    const armConfidence = 1 - Math.abs(avgArmAngle - idealCenter) / idealCenter
-
     return {
       isAPose: true,
-      confidence: Math.max(0, Math.min(1, armConfidence)),
-      feedback: 'Hold still — capturing…',
+      confidence: 1,
+      feedback: 'HOLD STILL',
     }
   }
 

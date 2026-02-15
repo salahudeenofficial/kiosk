@@ -78,7 +78,7 @@ const FiltersDrawer = ({
         className="fixed inset-0 bg-black/50 z-40"
         onClick={onClose}
       />
-      <div className="fixed right-0 top-0 h-full w-full sm:w-[400px] bg-white z-[100] overflow-y-auto shadow-2xl">
+      <div className="fixed right-0 top-0 h-full w-full sm:w-[240px] bg-white z-[100] overflow-y-auto shadow-2xl">
         <div className="flex flex-col h-full p-[4%]">
           <div className="flex items-center justify-between mb-[4%]">
             <h2 className="text-xl font-bold text-slate-900">Filters</h2>
@@ -107,8 +107,8 @@ const FiltersDrawer = ({
                       )
                     }
                     className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${localFilters.gender === gender
-                        ? 'bg-slate-800 text-white'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      ? 'bg-slate-800 text-white'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                       }`}
                   >
                     {gender}

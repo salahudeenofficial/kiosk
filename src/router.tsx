@@ -14,6 +14,7 @@ import TryOnResultsScreen from './pages/TryOnResultsScreen'
 import ValidationScreen from './pages/ValidationScreen'
 import FitCheckScreen from './pages/FitCheckScreen'
 import CoordinateFinder from './pages/CoordinateFinder'
+import ResetScreen from './pages/ResetScreen'
 
 const router = createBrowserRouter([
   {
@@ -34,6 +35,7 @@ const router = createBrowserRouter([
       { path: 'review', element: <ReviewScreen /> },
       { path: 'purchase', element: <PurchaseScreen /> },
       { path: 'session-end', element: <SessionEnd /> },
+      { path: 'reset-app', element: <ResetScreen /> },
       { path: '*', element: <Navigate to="/" replace /> },
     ],
   },

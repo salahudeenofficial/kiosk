@@ -4,12 +4,12 @@ type SearchBarProps = {
   placeholder?: string
 }
 
-const SearchBar = ({ value, onChange, placeholder = 'Search products...' }: SearchBarProps) => {
+const SearchBar = ({ value, onChange, placeholder = 'Search products...', className = '', inputClassName = '' }: SearchBarProps & { className?: string; inputClassName?: string }) => {
   // The localValue state and debouncing useEffect are removed as per the new input handling.
   // The input now directly uses the 'value' prop and calls 'onChange' directly.
 
   return (
-    <div className="relative w-full h-[56px]">
+    <div className={`relative w-full ${className || 'h-[56px]'}`}>
       <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -30,7 +30,7 @@ const SearchBar = ({ value, onChange, placeholder = 'Search products...' }: Sear
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="block w-full h-full pl-12 pr-4 bg-white border border-slate-300 rounded-xl leading-5 bg-white placeholder-slate-400 focus:outline-none focus:placeholder-slate-300 focus:ring-0 focus:border-slate-500 sm:text-sm font-medium transition-colors"
+        className={`block w-full h-full pl-12 pr-4 bg-white border border-slate-300 leading-5 bg-white placeholder-slate-400 focus:outline-none focus:placeholder-slate-300 focus:ring-0 focus:border-slate-500 sm:text-sm font-medium transition-colors ${inputClassName || 'rounded-xl'}`}
         placeholder={placeholder}
       />
     </div>

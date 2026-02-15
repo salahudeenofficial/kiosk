@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { Swiper, SwiperSlide } from 'swiper/react'
-import { Navigation, Pagination } from 'swiper/modules'
+import { Navigation } from 'swiper/modules'
 import type { Swiper as SwiperType } from 'swiper'
 import MotionFade from '../components/UI/MotionFade'
 import LoadingPulse from '../components/UI/LoadingPulse'
@@ -9,6 +9,7 @@ import { useKioskStore } from '../store/kioskStore'
 import { unifiedKioskApi } from '../utils/unifiedKioskApi'
 import useAutoNavigate from '../hooks/useAutoNavigate'
 import { formatPrice } from '../utils/validators'
+import EndSessionButton from '../components/UI/EndSessionButton'
 
 // Import Swiper styles
 import 'swiper/css'
@@ -19,7 +20,6 @@ const TryOnResultsScreen = () => {
   useAutoNavigate()
   const navigate = useNavigate()
   const selectedProducts = useKioskStore((state) => state.selectedProducts)
-  const resetSession = useKioskStore((state) => state.resetSession)
   const setUserMeasurements = useKioskStore((state) => state.setUserMeasurements)
   const userMeasurements = useKioskStore((state) => state.userMeasurements)
 
@@ -42,6 +42,7 @@ const TryOnResultsScreen = () => {
   const isLoading = useMemo(() => jobs.some(j => j.status === 'RUNNING' || j.status === 'PENDING' || j.status === 'QUEUED' || j.status === 'WAITING_MASK'), [jobs])
   const location = useLocation()
   const [activeIndex, setActiveIndex] = useState(location.state?.initialIndex || 0)
+  const [swiperRef, setSwiperRef] = useState<SwiperType | null>(null)
 
   // Refs for cleanup
   const eventSourceRef = useRef<EventSource | null>(null)
@@ -111,15 +112,7 @@ const TryOnResultsScreen = () => {
     }
   }, [])
 
-  const handleDone = async () => {
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close()
-      eventSourceRef.current = null
-    }
-    await unifiedKioskApi.completeSession()
-    resetSession()
-    navigate('/')
-  }
+
 
   const handleFitCheck = () => {
     const currentJob = jobs[activeIndex]
@@ -151,9 +144,7 @@ const TryOnResultsScreen = () => {
     return (
       <div className="fixed inset-0 bg-white text-black overflow-hidden z-50 min-h-screen w-full flex flex-col items-center justify-center p-8">
         <p className="text-xl text-red-500 mb-6">{error}</p>
-        <button onClick={handleDone} className="px-8 py-3 bg-black text-white rounded-xl font-bold hover:bg-neutral-800 transition-colors">
-          Return Home
-        </button>
+        <EndSessionButton />
       </div>
     )
   }
@@ -167,43 +158,29 @@ const TryOnResultsScreen = () => {
           <div className="flex items-center gap-4 pointer-events-auto">
             <button
               onClick={() => navigate('/products')}
-              className="w-10 h-10 bg-white rounded-full flex items-center justify-center border border-gray-200 text-black shadow-sm hover:bg-neutral-50 transition-all"
+              className="w-10 h-10 bg-white rounded-full flex items-center justify-center border border-black text-black shadow-sm hover:bg-neutral-50 transition-all"
               aria-label="Back to Products"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M19 12H5M12 19l-7-7 7-7" />
               </svg>
             </button>
-            <h2 className="text-xl font-bold text-black tracking-wide">Try-On Results</h2>
           </div>
 
           {/* End Session Button */}
-          <button
-            onClick={handleDone}
-            className="w-10 h-10 bg-white rounded-full flex items-center justify-center border border-gray-200 text-black shadow-sm hover:bg-neutral-50 transition-all pointer-events-auto"
-            aria-label="End Session"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
+          <EndSessionButton className="!text-black !border-black hover:!bg-black hover:!text-white" />
         </div>
 
         {/* Swiper Content */}
-        <div className="flex-1 w-full h-full pb-0">
+        <div className="flex-1 w-full min-h-0 relative">
           <Swiper
             initialSlide={activeIndex}
-            modules={[Navigation, Pagination]}
+            modules={[Navigation]}
             spaceBetween={20}
             slidesPerView={1}
             centeredSlides
+            onSwiper={setSwiperRef}
             onSlideChange={(swiper: SwiperType) => setActiveIndex(swiper.activeIndex)}
-            pagination={{
-              clickable: true,
-              bulletClass: 'swiper-pagination-bullet !bg-black/20 !w-2 !h-2 !transition-all',
-              bulletActiveClass: '!bg-black !scale-150',
-            }}
             // Force swiper to take full height
             className="w-full !h-full"
           >
@@ -212,9 +189,9 @@ const TryOnResultsScreen = () => {
 
               return (
                 // SwiperSlide must be flexible to center content perfectly
-                <SwiperSlide key={job.garment_id} className="!flex !h-full !w-full items-center justify-center p-4 pt-20 pb-8 box-border">
+                <SwiperSlide key={job.garment_id} className="!flex !flex-col !h-full !w-full items-center justify-center p-4 pt-16 pb-4 box-border relative">
                   {/* Image Card Container - Responsive Sizing */}
-                  <div className="relative w-full max-w-[85vw] sm:max-w-[400px] md:max-w-[450px] aspect-[3/4] rounded-[2rem] overflow-hidden shadow-2xl border border-gray-100 bg-gray-50 flex-shrink-0">
+                  <div className="relative w-full max-w-[85vw] sm:max-w-[600px] md:max-w-[675px] aspect-[3/4] rounded-xl overflow-hidden border border-gray-100 bg-gray-50 flex-shrink-0">
                     {job.imageUrl ? (
                       <img src={job.imageUrl} alt={job.productName} className="w-full h-full object-cover" />
                     ) : job.error ? (
@@ -240,74 +217,79 @@ const TryOnResultsScreen = () => {
                         {product.pairedProduct ? (
                           <>
                             {/* Upper Garment Detail - Top Left */}
-                            <div className="absolute top-20 left-4 z-10 max-w-[150px] sm:max-w-[200px]">
-                              <div className="bg-white/90 backdrop-blur-lg p-3 rounded-2xl shadow-lg border border-white/50">
-                                <p className="text-[10px] text-black/50 uppercase tracking-widest font-bold">
-                                  {product.description ? product.description.split('-')[0] : 'Brand'}
-                                </p>
-                                <h3 className="text-sm font-bold text-black truncate leading-tight">
-                                  {product.title}
-                                </h3>
-                                <p className="text-xs font-medium text-black/80 mt-1">
-                                  {formatPrice(product.price)}
-                                </p>
+                            <div className="absolute top-4 left-4 z-10 max-w-[200px]">
+                              <div className="bg-white/95 backdrop-blur-md p-2 rounded-md shadow-sm border border-gray-100 flex items-center gap-2">
+                                <img src={product.image} alt={product.title} className="w-10 h-12 object-cover rounded-sm bg-gray-50" />
+                                <div className="min-w-0">
+                                  <p className="text-[9px] text-gray-400 uppercase tracking-widest font-bold truncate">
+                                    {product.description ? product.description.split('-')[0] : 'Brand'}
+                                  </p>
+                                  <h3 className="text-xs font-bold text-gray-900 truncate leading-tight">
+                                    {product.title}
+                                  </h3>
+                                  <p className="text-[10px] font-medium text-gray-600 mt-0.5">
+                                    {formatPrice(product.price)}
+                                  </p>
+                                </div>
                               </div>
                             </div>
 
-                            {/* Lower Garment Detail - Bottom Left */}
-                            <div className="absolute bottom-4 left-4 z-10 max-w-[150px] sm:max-w-[200px]">
-                              <div className="bg-white/90 backdrop-blur-lg p-3 rounded-2xl shadow-lg border border-white/50">
-                                <p className="text-[10px] text-black/50 uppercase tracking-widest font-bold">
-                                  {product.pairedProduct.description ? product.pairedProduct.description.split('-')[0] : 'Brand'}
-                                </p>
-                                <h3 className="text-sm font-bold text-black truncate leading-tight">
-                                  {product.pairedProduct.title}
-                                </h3>
-                                <p className="text-xs font-medium text-black/80 mt-1">
-                                  {formatPrice(product.pairedProduct.price)}
-                                </p>
+                            {/* Lower Garment Detail - Top Right */}
+                            <div className="absolute top-4 right-4 z-10 max-w-[200px]">
+                              <div className="bg-white/95 backdrop-blur-md p-2 rounded-md shadow-sm border border-gray-100 flex items-center gap-2">
+                                <img src={product.pairedProduct.image} alt={product.pairedProduct.title} className="w-10 h-12 object-cover rounded-sm bg-gray-50" />
+                                <div className="min-w-0">
+                                  <p className="text-[9px] text-gray-400 uppercase tracking-widest font-bold truncate">
+                                    {product.pairedProduct.description ? product.pairedProduct.description.split('-')[0] : 'Brand'}
+                                  </p>
+                                  <h3 className="text-xs font-bold text-gray-900 truncate leading-tight">
+                                    {product.pairedProduct.title}
+                                  </h3>
+                                  <p className="text-[10px] font-medium text-gray-600 mt-0.5">
+                                    {formatPrice(product.pairedProduct.price)}
+                                  </p>
+                                </div>
                               </div>
                             </div>
                           </>
                         ) : (
-                          /* Standard Single Garment Detail - Bottom Left */
-                          <div className="absolute bottom-4 left-4 z-10 max-w-[150px] sm:max-w-[200px]">
-                            <div className="bg-white/90 backdrop-blur-lg p-3 rounded-2xl shadow-lg border border-white/50">
-                              <p className="text-[10px] text-black/50 uppercase tracking-widest font-bold">
-                                {product.description ? product.description.split('-')[0] : 'Brand'}
-                              </p>
-                              <h3 className="text-sm font-bold text-black truncate leading-tight">
-                                {product.title}
-                              </h3>
-                              <p className="text-xs font-medium text-black/80 mt-1">
-                                {formatPrice(product.price)}
-                              </p>
+                          /* Standard Single Garment Detail - Top Left */
+                          <div className="absolute top-4 left-4 z-10 max-w-[200px]">
+                            <div className="bg-white/95 backdrop-blur-md p-2 rounded-md shadow-sm border border-gray-100 flex items-center gap-2">
+                              <img src={product.image} alt={product.title} className="w-10 h-12 object-cover rounded-sm bg-gray-50" />
+                              <div className="min-w-0">
+                                <p className="text-[9px] text-gray-400 uppercase tracking-widest font-bold truncate">
+                                  {product.description ? product.description.split('-')[0] : 'Brand'}
+                                </p>
+                                <h3 className="text-xs font-bold text-gray-900 truncate leading-tight">
+                                  {product.title}
+                                </h3>
+                                <p className="text-[10px] font-medium text-gray-600 mt-0.5">
+                                  {formatPrice(product.price)}
+                                </p>
+                              </div>
                             </div>
                           </div>
                         )}
                       </>
                     )}
 
-                    {/* Fit Check Button - Bottom Right */}
+                    {/* See My Fit Button - Bottom Right */}
                     <div className="absolute bottom-4 right-4 z-10">
                       <button
                         onClick={handleFitCheck}
                         disabled={!userMeasurements}
-                        className={`flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-3 rounded-full shadow-lg transition-all active:scale-95 ${userMeasurements
-                          ? 'bg-black text-white hover:bg-neutral-800'
+                        className={`flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-3 rounded-md shadow-lg transition-all active:scale-95 border border-gray-100 ${userMeasurements
+                          ? 'bg-white text-black hover:bg-gray-50'
                           : 'bg-gray-100 text-gray-400 cursor-wait'
                           }`}
                       >
                         {!userMeasurements ? (
                           <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
                         ) : (
-                          <svg className="w-4 h-4 sm:w-[18px] sm:h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"></path>
-                            <line x1="16" y1="8" x2="2" y2="22"></line>
-                            <line x1="17.5" y1="15" x2="9" y2="15"></line>
-                          </svg>
+                          <img src="/icons/fit-check-icon.png" alt="Fit Check" className="w-4 h-4 sm:w-[18px] sm:h-[18px] object-contain" />
                         )}
-                        <span className="text-xs sm:text-sm font-bold">Fit Check</span>
+                        <span className="text-xs sm:text-sm font-bold">See My Fit</span>
                       </button>
                     </div>
 
@@ -318,8 +300,26 @@ const TryOnResultsScreen = () => {
           </Swiper>
         </div>
 
-      </MotionFade>
-    </div>
+
+
+        {/* Indicators fixed at bottom - Static Footer */}
+        <div className="w-full flex justify-center gap-2 pt-6 pb-24 bg-white shrink-0 z-30">
+          {jobs.map((_, idx) => (
+            <button
+              key={idx}
+              onClick={(e) => {
+                e.stopPropagation()
+                swiperRef?.slideTo(idx)
+              }}
+              className={`w-2 h-2 rounded-full transition-all duration-300 ${idx === activeIndex ? 'bg-gray-600 scale-125' : 'bg-gray-300 hover:bg-gray-400'
+                }`}
+              aria-label={`Go to slide ${idx + 1}`}
+            />
+          ))}
+        </div>
+
+      </MotionFade >
+    </div >
   )
 }
 

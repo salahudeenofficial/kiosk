@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import MotionFade from './components/UI/MotionFade'
 import { useKioskStore } from './store/kioskStore'
-import useSessionTimeout from './hooks/useSessionTimeout'
+// import useSessionTimeout from './hooks/useSessionTimeout'
 import SessionTimeoutBar from './components/UI/SessionTimeoutBar'
 import DebugPanel from './components/Debug/DebugPanel'
 import { unifiedKioskApi } from './utils/unifiedKioskApi'
@@ -112,7 +112,7 @@ const AppLayout = () => {
   }, [sessionId, updateVtonJob])
 
   // Initialize session timeout logic
-  const { remaining, resetTimer, isWarning } = useSessionTimeout()
+  // const { remaining, resetTimer, isWarning } = useSessionTimeout() moved to component
 
   // Check if kiosk is configured on mount
   useEffect(() => {
@@ -164,6 +164,27 @@ const AppLayout = () => {
     }
   }, [location.pathname, sessionId, userGender, navigate])
 
+  // Check for pages that handle their own layout (full screen, white theme)
+  const isFullScreenPage =
+    location.pathname === '/capture' ||
+    location.pathname === '/products' ||
+    location.pathname === '/tryon-results' ||
+    location.pathname === '/fit-check' ||
+    location.pathname.startsWith('/product/')
+
+  if (isFullScreenPage) {
+    return (
+      <div className="relative min-h-screen w-full">
+        <Outlet />
+
+        <SessionTimeoutBar />
+
+        {/* Debug Panel - only visible in development */}
+        <DebugPanel />
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen w-full bg-kiosk-gradient text-slate-50 relative">
       <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col p-[4%]">
@@ -171,11 +192,7 @@ const AppLayout = () => {
           <Outlet />
         </MotionFade>
 
-        <SessionTimeoutBar
-          remainingSeconds={remaining}
-          onContinue={resetTimer}
-          isVisible={isWarning && location.pathname === '/tryon-results'}
-        />
+        <SessionTimeoutBar />
       </div>
 
       {/* Debug Panel - only visible in development */}

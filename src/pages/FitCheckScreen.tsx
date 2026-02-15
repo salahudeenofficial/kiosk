@@ -4,6 +4,7 @@ import MotionFade from '../components/UI/MotionFade'
 import StickFigure from '../components/FitCheck/StickFigure'
 import { useKioskStore } from '../store/kioskStore'
 import { unifiedKioskApi } from '../utils/unifiedKioskApi'
+import EndSessionButton from '../components/UI/EndSessionButton'
 import type { SizeRecommendationResponse } from '../utils/kioskApi'
 import './FitCheckScreen.css'
 
@@ -30,9 +31,6 @@ const MEASUREMENT_METADATA: Record<string, { label: string, priority: number }> 
 // ... (Rest of existing FitCheckScreen code, but map loop updated)
 
 
-
-const SORTED_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL']
-
 interface FitCheckScreenProps {
     isOverlay?: boolean
     onClose?: () => void
@@ -42,7 +40,7 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
     const navigate = useNavigate()
     const location = useLocation()
     const userGender = useKioskStore((state) => state.userGender)
-    const setSelectedSize = useKioskStore((state) => state.setSelectedSize)
+
 
     const [isPanelOpen, setIsPanelOpen] = useState(false)
     const [selectedSize, setSize] = useState<string>('M')
@@ -51,7 +49,40 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
     const [recommendations, setRecommendations] = useState<SizeRecommendationResponse[]>([])
     const [loading, setLoading] = useState(true)
 
+    // Derive available sizes from recommendations
+    const availableSizes = useMemo(() => {
+        if (recommendations.length === 0) return [];
+        // Aggregate all unique sizes from all recommendations
+        const sizes = new Set<string>();
+        recommendations.forEach(rec => {
+            rec.all_sizes?.forEach(s => sizes.add(s.size));
+        });
 
+        const sizeArray = Array.from(sizes);
+
+        // Helper to sort sizes logically
+        const sizeOrder = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '2XL', '3XL', '4XL'];
+
+        return sizeArray.sort((a, b) => {
+            const aIndex = sizeOrder.indexOf(a.toUpperCase());
+            const bIndex = sizeOrder.indexOf(b.toUpperCase());
+
+            // If both are standard letter sizes, sort by index
+            if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+            // If only A is standard, A comes first
+            if (aIndex !== -1) return -1;
+            // If only B is standard, B comes first
+            if (bIndex !== -1) return 1;
+
+            // If both are numbers, sort numerically
+            const aNum = parseFloat(a);
+            const bNum = parseFloat(b);
+            if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
+
+            // Fallback to alphabetical
+            return a.localeCompare(b);
+        });
+    }, [recommendations]);
 
     // Load Data
     useEffect(() => {
@@ -85,9 +116,16 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
                 console.log('[FitCheck] Raw API Response:', results)
                 setRecommendations(results)
 
-                // Set default size from first result if available
-                if (results[0]?.recommended_size) {
-                    setSize(results[0].recommended_size)
+                // Set default size logic:
+                // 1. Recommended size (if exists)
+                // 2. First available size in the list
+                // 3. Keep current if valid? (Simplified: just reset to best guess)
+
+                const recSize = results[0]?.recommended_size;
+                if (recSize) {
+                    setSize(recSize);
+                } else if (results[0]?.all_sizes?.length > 0) {
+                    setSize(results[0].all_sizes[0].size); // Default to first available
                 }
             } catch (err) {
                 console.error("Failed to load size recommendations", err)
@@ -100,12 +138,24 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
 
     // Get selected size details for rendering
     const selectedSizeDetails = useMemo(() => {
-        const rec = recommendations[0] // Assuming single product for now or taking first
-        if (!rec?.all_sizes) return null
-        return rec.all_sizes.find(s => s.size === selectedSize)?.details || null
+        if (!selectedSize) return null;
+
+        // Find the first recommendation that has details for the selected size
+        // We search through all recommendations (garments) to find one that supports this size
+        const targetSize = selectedSize; // Case-sensitive exact match preference, but fallback?? 
+        // User asked "take it as it is", so we try exact match first.
+
+        for (const rec of recommendations) {
+            if (!rec?.all_sizes) continue;
+
+            // Try exact match first
+            const sizeOption = rec.all_sizes.find(s => s.size === targetSize);
+            if (sizeOption?.details) {
+                return sizeOption.details;
+            }
+        }
+        return null;
     }, [recommendations, selectedSize])
-
-
 
     // Calculate loose scores for StickFigure
     const looseScores = useMemo(() => {
@@ -116,14 +166,26 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
         if (selectedSizeDetails) {
             Object.entries(selectedSizeDetails).forEach(([key, detail]) => {
                 // Map keys to standard stick figure keys (chest, waist, shoulder, hip)
-                let stickKey: string | null = key
-                if (key === 'shoulder_width') stickKey = 'shoulder'
+                const normalizedKey = key.toLowerCase();
+                let stickKey: string | null = null;
+
+                if (normalizedKey.includes('chest') || normalizedKey.includes('bust')) stickKey = 'chest';
+                else if (normalizedKey.includes('waist')) stickKey = 'waist';
+                else if (normalizedKey.includes('shoulder')) stickKey = 'shoulder';
+                else if (normalizedKey.includes('hip')) stickKey = 'hip';
 
                 if (stickKey && stickKey in scores) {
-                    if (typeof detail.diff_cm === 'number') {
-                        scores[stickKey] = detail.diff_cm
-                    } else {
+                    // Always calculate as (Garment - User) so that:
+                    // Positive = Loose (Garment is bigger) -> Blue
+                    // Negative = Tight (Garment is smaller) -> Red
+                    if (typeof detail.chart === 'number' && typeof detail.user === 'number') {
                         scores[stickKey] = detail.chart - detail.user
+                    } else if (typeof detail.diff_cm === 'number') {
+                        // Fallback: If diff_cm is provided, assume it might be (User - Garment) which caused the reverse issue.
+                        // We'll flip it just in case, or stick to the manual calc preference.
+                        // If the user said it's reversed, likely diff_cm was (User - Garment).
+                        // Let's invert it if we are forced to use it.
+                        scores[stickKey] = -detail.diff_cm
                     }
                 }
             })
@@ -142,31 +204,31 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
         }
     }
 
-    const handleDone = () => {
-        if (setSelectedSize) {
-            setSelectedSize(selectedSize)
-        }
-        if (isOverlay && onClose) {
-            onClose()
-        } else {
-            navigate('/tryon-results')
-        }
-    }
-
     // Sort keys for display
     const sortedMeasurementKeys = useMemo(() => {
-        if (!selectedSizeDetails) return []
-        return Object.keys(selectedSizeDetails).sort((a, b) => {
+        const detailKeys = selectedSizeDetails ? Object.keys(selectedSizeDetails) : [];
+        const userKeys = recommendations[0]?.user_measurements ? Object.keys(recommendations[0].user_measurements) : [];
+
+        // Merge unique keys
+        const allKeys = Array.from(new Set([...detailKeys, ...userKeys]));
+
+        return allKeys.sort((a, b) => {
             const pA = MEASUREMENT_METADATA[a]?.priority || 99
             const pB = MEASUREMENT_METADATA[b]?.priority || 99
+
+            // If priorities are equal (both 99 or both explicitly same), fallback to alphabet
+            if (pA === pB) {
+                return a.localeCompare(b);
+            }
             return pA - pB
         })
-    }, [selectedSizeDetails])
+    }, [selectedSizeDetails, recommendations])
 
     return (
         <MotionFade>
             <div className="fixed inset-0 bg-white text-slate-900 z-50 overflow-y-auto">
                 {/* Back Button */}
+                <EndSessionButton />
                 <button
                     className="absolute top-4 left-4 z-50 p-2 rounded-full hover:bg-slate-100 transition-colors"
                     onClick={handleBack}
@@ -179,14 +241,17 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
 
                 <div className="max-w-4xl mx-auto px-6 py-8 pb-24">
                     {/* Header */}
-                    <header className="text-center mb-8 pt-12">
-                        <h1 className="fit-check-heading text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight pb-3 border-b-2 border-slate-200 inline-block mx-auto mb-4">
-                            Fit Check
+                    <div className="flex flex-col items-center mb-8 pt-12 text-center">
+                        <p className="text-sm uppercase tracking-[0.2em] text-slate-500 mb-2">
+                            ANALYSIS
+                        </p>
+                        <h1 className="text-clamp-title font-bold text-slate-900 tracking-tight mb-2">
+                            Fit Intelligence
                         </h1>
-                        <p className="text-base text-slate-500 max-w-md mx-auto leading-relaxed">
+                        <p className="text-base text-slate-600 max-w-md mx-auto leading-relaxed">
                             Personal fit recommendation based on your measurements
                         </p>
-                    </header>
+                    </div>
 
                     {/* Main Content Container */}
                     <div className="relative">
@@ -197,47 +262,42 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
                             </div>
 
                             {/* List Header */}
-                            <div className="fit-list-header">
+                            <div className="fit-list-header grid-cols-2">
                                 <div>Body Part</div>
                                 <div>Your Size</div>
-                                <div>Garment Size</div>
-                                <div>Difference</div>
                             </div>
 
                             {/* Measurement Rows */}
+                            {/* Measurement Rows */}
                             {sortedMeasurementKeys.length > 0 ? (
                                 sortedMeasurementKeys.map(key => {
-                                    const detail = selectedSizeDetails![key]
-                                    const meta = MEASUREMENT_METADATA[key] || { label: key.charAt(0).toUpperCase() + key.slice(1).replace('_', ' ') }
+                                    // Try to get detail from selected size, otherwise basic user measurement
+                                    const detail = selectedSizeDetails?.[key];
+                                    const userMeasurement = recommendations[0]?.user_measurements?.[key];
 
-                                    const userVal = detail.user
-                                    const chartVal = detail.chart
-                                    const diff = detail.diff_cm
+                                    // Value to display: prefer detail.user (contextual), then userMeasurement
+                                    const displayValue = detail?.user ?? userMeasurement;
+
+                                    // Skip if no value found
+                                    if (displayValue === undefined || displayValue === null) return null;
+
+                                    const meta = MEASUREMENT_METADATA[key] || { label: key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ') }
 
                                     return (
                                         <div
                                             key={key}
-                                            className="fit-measurement-row"
+                                            className="fit-measurement-row grid-cols-2"
                                         >
                                             <div className="fit-m-label">{meta.label}</div>
                                             <div className="fit-m-value">
-                                                {userVal ? `${userVal.toFixed(1)} cm` : '--'}
-                                            </div>
-                                            <div className="fit-m-value">
-                                                {typeof chartVal === 'number' ? `${chartVal.toFixed(1)} cm` : '--'}
-                                            </div>
-                                            <div className="fit-m-value" style={{
-                                                color: diff !== null ? (Math.abs(diff) <= 2 ? '#22c55e' : (diff < 0 ? '#ef4444' : '#3b82f6')) : 'inherit',
-                                                fontWeight: '600'
-                                            }}>
-                                                {diff !== null ? (diff > 0 ? `+${diff.toFixed(1)}` : diff.toFixed(1)) : '--'} cm
+                                                {typeof displayValue === 'number' ? `${displayValue.toFixed(1)} cm` : displayValue}
                                             </div>
                                         </div>
                                     )
                                 })
                             ) : (
                                 <div className="p-4 text-slate-400 text-center italic">
-                                    Select a size to see measurement details
+                                    No measurement data available
                                 </div>
                             )}
                         </div>
@@ -266,7 +326,7 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
                             {/* Size Toggle Buttons */}
                             <div className="flex flex-col items-center mb-8">
                                 <div className="flex flex-wrap gap-2 justify-center mb-2">
-                                    {SORTED_SIZES.map(size => {
+                                    {availableSizes.map(size => {
                                         // Use logic: Show unless explicitly missing from response
                                         // If no recommendations yet (loading), show all
                                         // If recommendations exist, check if size is in `all_sizes`
@@ -278,20 +338,29 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
 
                                         if (!isAvailable) return null;
 
+                                        const isRec = recommendations[0]?.recommended_size === size;
+                                        const isSelected = size === selectedSize;
+
                                         return (
-                                            <button
-                                                key={size}
-                                                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${size === selectedSize
-                                                    ? 'bg-black text-white border-2 border-black shadow-lg'
-                                                    : 'bg-white text-slate-500 border-2 border-slate-200 hover:border-slate-400'
-                                                    }`}
-                                                onClick={() => setSize(size)}
-                                            >
-                                                {size}
-                                            </button>
+                                            <div key={size} className="relative flex flex-col items-center">
+                                                {isRec && (
+                                                    <span className="absolute -top-6 text-[10px] uppercase font-bold tracking-wider text-black bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200 shadow-sm z-10 whitespace-nowrap">
+                                                        Recommended
+                                                    </span>
+                                                )}
+                                                <button
+                                                    className={`relative px-4 py-3 min-w-[3.5rem] rounded-xl text-sm font-bold transition-all duration-200 whitespace-nowrap ${isSelected
+                                                        ? 'bg-black text-white shadow-xl shadow-black/20 scale-105 ring-2 ring-offset-2 ring-black'
+                                                        : 'bg-white text-slate-500 border border-slate-200 hover:border-slate-400 hover:bg-slate-50'
+                                                        } ${isRec && !isSelected ? 'border-emerald-400 border-2 text-emerald-600' : ''}`}
+                                                    onClick={() => setSize(size)}
+                                                >
+                                                    {size}
+                                                </button>
+                                            </div>
                                         )
                                     })}
-                                    {recommendations.length === 0 && !loading && (
+                                    {availableSizes.length === 0 && !loading && (
                                         <div className="text-slate-400 text-sm">No size data available</div>
                                     )}
                                 </div>
@@ -313,19 +382,6 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
                                 </div>
                             </div>
                         </div>
-                    </div>
-
-                    {/* Done Button */}
-                    <div className="flex justify-center mt-8">
-                        <button
-                            className="px-8 py-4 bg-black text-white rounded-xl text-lg font-bold shadow-xl hover:bg-slate-800 transition-colors flex items-center gap-2"
-                            onClick={handleDone}
-                        >
-                            Done
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <polyline points="20 6 9 17 4 12" />
-                            </svg>
-                        </button>
                     </div>
                 </div>
             </div>

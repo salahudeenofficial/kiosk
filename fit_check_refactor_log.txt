@@ -41,3 +41,108 @@ This removes the harsh jump in brightness between the core and the glow, creatin
 - **Body Width Reduction**: Reduced shoulder, chest, waist, and hip widths by ~20-25% to be more proportional to head/neck.
 - **Leg Width Reduction**: Narrowed legs (top width 42 -> 36) and tapering for a slimmer look.
 - **Arm Alignment**: Aligned arm start position vertically with the shoulder top edge (removed upward offset).
+
+## Validation Image Capture UI Refactor
+- **Head Translation**: Transported the head of the silhouette vertically up by 6 units (y: 12 -> 6).
+- **Leg Extension**: Increased the length of the legs in the capture frame by extending the bottom Y coordinate (y: 125 -> 132).
+
+## Capture Page UI Refactor
+- **Instruction Bar**: Moved instruction bar below the capture frame (out of the video).
+- **Layout**: Switch to vertical flex layout with video on top and instructions below.
+- **Typography**: Updated instructions to use large, bold font for legibility from afar.
+- **Conciseness**: Shortened status messages and feedback prompts (e.g., "Step Back", "Hold Still") for quick reading.
+- **Theme Update**: Changed Capture Page background to white to match the catalog design, updated header typography and layout to be consistent with Product Page.
+- **End Session**: Added a persistent "End Session" (X) button to the Capture Page, Product Page, Result Page, and Fit Check Page to allow users to exit the session at any time.
+- **Visual Fix**: Removed black background and borders from the camera container to ensure a clean, seamless white design.
+- **Product Card**: Updated product card design to have sharp corners, black star ratings, and removed brand names for a cleaner look.
+- **Stick Figure**: Decreased shoulder piece height to 40% and added the difference to the chest piece height to adjust proportions.
+- **User Details**: Added the "End Session" button to the User Details/Review page for consistent session exit functionality.
+
+## Fit Check Page Refactor
+- **Measurements Table**: Removed "Garment Size" and "Difference" columns for a simplified view.
+- **Header Update**: Renamed "Fit Check" to "Fit Intelligence" and styled it to match the Product List page design (centered, uppercase kicker).
+- **Navigation**: Removed the "Done" button.
+- **End Session Button**: Redesigned to be smaller and positioned symmetrically to the back button (top-4 right-4).
+
+## Capture UI Update
+- **Silhouette Adjustment**: Moved the silhouette vertically up by 10 units to better align with the camera feed.
+
+## Product Page Update
+- **Click Logic Refinement**: Implemented a drag threshold (15px) for product cards and buttons to prevent accidental clicks while scrolling. Wrapped "Pair it" and "Try On" buttons to respect this threshold.
+
+## Capture UI Update - Torso Reduction
+- **Torso Shortened**: Lowered the shoulder and arm coordinates by 10 units to reduce the vertical height of the torso relative to the legs, addressing an issue where users' arms could not reach the silhouette arms comfortably.
+
+## Capture UI Update - Silhouette Style
+- **Stick Figure Replacement**: Replaced the body outline path with a simpler stick figure A-pose silhouette.
+- **Coordinates**:
+  - Head: Circle, r=9 at (50, 25).
+  - Spine: Line from (50, 34) to (50, 75).
+  - Arms: Lines from (50, 42) to (10, 65) & (90, 65).
+  - Legs: Lines from (50, 75) to (25, 132) & (75, 132).
+  - Transformation: Preserved vertical translation (-10px).
+
+## Capture UI Update - Feedback & Indicator
+- **Silhouette Overlay**: Moved the stick figure to a small circular indicator at the bottom center of the frame (w-24 h-24). Stick figure is now a simplified icon.
+- **Status Text**: Updated  to return granular feedback including "MISALIGNED", "OUT OF FRAME", or "MISALIGNED • OUT OF FRAME" (if both conditions apply).
+- **AutoCamera**: Updated to display dynamic feedback from the pose detector instead of static "ALIGN BODY WITH SILHOUETTE".
+
+## Capture UI Update - Feedback & Indicator
+- **Silhouette Overlay**: Moved the stick figure to a small circular indicator at the bottom center of the frame (w-24 h-24). Stick figure is now a simplified icon.
+- **Status Text**: Updated PoseDetector to return granular feedback including "MISALIGNED", "OUT OF FRAME", or "MISALIGNED • OUT OF FRAME" (if both conditions apply).
+- **AutoCamera**: Updated to display dynamic feedback from the pose detector instead of static "ALIGN BODY WITH SILHOUETTE".
+
+## Capture UI Update - Header & Feedback Logic
+- **Header**: Replaced "Capture" text with "AI Capture: A-Pose Only" and A-Pose placeholder icon.
+- **Initial Status**: Changed initial instruction to "MAKE SURE FULL BODY IS IN FRAME".
+- **Feedback Logic**:
+  - **Priority 1**: "FULL-BODY NOT IN-FRAME" (if any framing landmark is missing).
+  - **Priority 2**: "POSE MISALIGNMENT" alternating with "REFER GIF FOR ACCURATE POSE" (if visible but misaligned).
+  - **Priority 3**: "HOLD STILL" (if pose is valid).
+
+## Try-On Results Page Refactor
+- **Header**: Removed "Try-On Results" heading text.
+- **Image Card**: Increased height and width by ~50% (maintaining aspect ratio).
+- **Product Details Placement**:
+  - Single product: Moved to Top Left.
+  - Paired products: Main garment Top Left, Paired garment Top Right.
+- **Product Details Content**: Added product image thumbnail to the details card.
+
+## Try-On Results UI Refinement
+- **Result Card**: Reduced border radius from  to  (rounded-3xl).
+- **Product Details Cards**: Updated border from  to  to match the result card styling.
+
+## Try-On Results UI Refinement (Part 2)
+- **Result Card Radius**: Reduced significantly from `rounded-[24px]` to `rounded-xl`.
+- **Product Details Card Radius**: Updated to `rounded-xl` to match the result card.
+- **Card Position**: Moved upwards by reducing Swiper padding-top from `pt-20` to `pt-16`.
+- **End Session Button**: Updated color to black (`!text-black`) with a gray border to ensure visibility.
+
+## Try-On Results UI Refinement (Part 3)
+- **Result Card Alignment**: Changed SwiperSlide alignment from `items-center` to `items-start` to ensure card is rendered at the top, not vertically centered.
+- **Top Padding Adjustment**: Increased SwiperSlide top padding from `pt-16` to `pt-24` to provide clear separation from the header elements.
+- **Back Button Style**: Updated border to black (`border-black`) for consistency with other UI elements.
+
+## Try-On Results UI Refinement (Part 4)
+- **Swiper Pagination**: Styled to be a grey-themed carousel indicator (`bg-gray-300` inactive, `bg-gray-600` active).
+- **Product Card Position**: Moved product details to `top-4 left-4` (and `top-4 right-4`) inside the image card.
+- **Product Card Top Padding**: Reduced result card container top padding back to `pt-16` to balance the layout.
+- **Product Card Styling**:
+  - Reduced border radius to `rounded-md` (very small).
+  - Reduced inner padding and image size for a more compact look.
+  - Updated text colors to gray/black theme.
+
+## Try-On Results Button Refactor
+- **Button Icon**: Replaced "Fit Check" SVG icon with `fit-check-icon.png`.
+- **Button Text**: Renamed "Fit Check" to "See My Fit".
+
+## Products Page UI Refactor
+- **Filter Icon**: Removed white stroke/border by adding !border-none !shadow-none.
+- **Filter Tags**: Styled with black border, white background, and black text.
+- **Product Cards**: Removed default borders.
+
+## Products Page Search Bar Refactor
+- Reduced height of Search Bar, Filter Button, and Sort Dropdown to 28px (matching icon size).
+- Reduced gap between controls to gap-2.
+- Changed Filter Tag border radius to 1px.
+- Updated text size to text-xs for compact look.
