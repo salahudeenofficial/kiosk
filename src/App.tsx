@@ -16,91 +16,114 @@ const AppLayout = () => {
   const setIsConfigured = useKioskStore((state) => state.setIsConfigured)
   const updateVtonJob = useKioskStore((state) => state.updateVtonJob)
 
-  // Global VTON Stream Listener
+  // Global VTON Stream Listener with auto-reconnect
   useEffect(() => {
     if (!sessionId) return
 
     const controller = new AbortController()
+    let retryCount = 0
+    const MAX_RETRIES = 10
+    const BASE_DELAY_MS = 1000
+    const MAX_DELAY_MS = 30000
+
+    const handleResult = (result: VtonResultEvent) => {
+      console.log('[App] Received VTON result:', result)
+      retryCount = 0 // Reset backoff on successful data
+
+      const currentJobs = useKioskStore.getState().vtonJobs
+      let updatedCount = 0
+
+      if (result.job_id) {
+        Object.entries(currentJobs).forEach(([gid, job]) => {
+          if (job.jobId === result.job_id) {
+            updateVtonJob(
+              gid,
+              result.status,
+              result.output_image_data || result.output_image_url,
+              result.error || undefined,
+              result.job_id
+            )
+            updatedCount++
+          }
+        })
+      }
+
+      if (updatedCount === 0) {
+        updateVtonJob(
+          result.garment_id.toString(),
+          result.status,
+          result.output_image_data || result.output_image_url,
+          result.error || undefined,
+          result.job_id
+        )
+      }
+    }
+
+    const handleError = (error: VtonErrorEvent) => {
+      console.error('[App] Received VTON error:', error)
+
+      const currentJobs = useKioskStore.getState().vtonJobs
+      let updatedCount = 0
+
+      if (error.job_id) {
+        Object.entries(currentJobs).forEach(([gid, job]) => {
+          if (job.jobId === error.job_id) {
+            updateVtonJob(
+              gid,
+              error.status,
+              null,
+              error.error,
+              error.job_id
+            )
+            updatedCount++
+          }
+        })
+      }
+
+      if (updatedCount === 0) {
+        updateVtonJob(
+          error.garment_id.toString(),
+          error.status,
+          null,
+          error.error,
+          error.job_id
+        )
+      }
+    }
+
+    const handleUpdate = (update: unknown) => {
+      console.log('[App] Received VTON update:', update)
+      retryCount = 0
+    }
 
     const startStream = async () => {
-      try {
-        await unifiedKioskApi.startVtonStreamWithFetch(
-          (result: VtonResultEvent) => {
-            console.log('[App] Received VTON result:', result)
+      while (!controller.signal.aborted && retryCount < MAX_RETRIES) {
+        try {
+          console.log(`[App] Starting SSE stream (attempt ${retryCount + 1})`)
+          await unifiedKioskApi.startVtonStreamWithFetch(
+            handleResult,
+            handleError,
+            handleUpdate,
+            controller.signal
+          )
+          // Stream ended normally (server closed) — reconnect
+          if (controller.signal.aborted) return
+          console.log('[App] Stream ended, reconnecting...')
+        } catch (err) {
+          if (err instanceof Error && err.name === 'AbortError') return
+          console.error('[App] Stream error:', err)
+        }
 
-            // Logic to handle stitch mode:
-            // If the result has a job_id, update all local jobs sharing that job_id.
-            // This ensures both garments in a pair get updated even if the event only lists one garment ID.
-            const currentJobs = useKioskStore.getState().vtonJobs
-            let updatedCount = 0
+        // Exponential backoff with jitter
+        retryCount++
+        const delay = Math.min(BASE_DELAY_MS * Math.pow(2, retryCount - 1), MAX_DELAY_MS)
+        const jitter = delay * 0.3 * Math.random()
+        console.log(`[App] Reconnecting in ${Math.round(delay + jitter)}ms (retry ${retryCount}/${MAX_RETRIES})`)
+        await new Promise(resolve => setTimeout(resolve, delay + jitter))
+      }
 
-            if (result.job_id) {
-              Object.entries(currentJobs).forEach(([gid, job]) => {
-                if (job.jobId === result.job_id) {
-                  updateVtonJob(
-                    gid, // Update this garment
-                    result.status,
-                    result.output_image_data || result.output_image_url,
-                    result.error || undefined,
-                    result.job_id
-                  )
-                  updatedCount++
-                }
-              })
-            }
-
-            // Fallback: If no jobs matched by ID (or specific single job), update by garment_id from event
-            if (updatedCount === 0) {
-              updateVtonJob(
-                result.garment_id.toString(),
-                result.status,
-                result.output_image_data || result.output_image_url,
-                result.error || undefined,
-                result.job_id
-              )
-            }
-          },
-          (error: VtonErrorEvent) => {
-            console.error('[App] Received VTON error:', error)
-            // Similar logic for error
-            const currentJobs = useKioskStore.getState().vtonJobs
-            let updatedCount = 0
-
-            if (error.job_id) {
-              Object.entries(currentJobs).forEach(([gid, job]) => {
-                if (job.jobId === error.job_id) {
-                  updateVtonJob(
-                    gid,
-                    error.status,
-                    null,
-                    error.error,
-                    error.job_id
-                  )
-                  updatedCount++
-                }
-              })
-            }
-
-            if (updatedCount === 0) {
-              updateVtonJob(
-                error.garment_id.toString(),
-                error.status,
-                null,
-                error.error,
-                error.job_id
-              )
-            }
-          },
-          (update) => {
-            console.log('[App] Received VTON update:', update)
-            // Functionality for updates if needed, e.g. update status to 'PROCESSING'
-          },
-          controller.signal
-        )
-      } catch (err) {
-        if (err instanceof Error && err.name === 'AbortError') return
-        console.error('[App] Stream error:', err)
-        // Retry logic could go here
+      if (retryCount >= MAX_RETRIES) {
+        console.error('[App] SSE stream max retries reached, giving up')
       }
     }
 
@@ -134,6 +157,9 @@ const AppLayout = () => {
   }, [setIsConfigured, location.search])
 
   // Route protection: redirect to appropriate pages based on session state
+  // On reload, in-memory session is lost — terminate and go back to idle
+  const resetSession = useKioskStore((state) => state.resetSession)
+
   useEffect(() => {
     const currentPath = location.pathname
 
@@ -142,16 +168,17 @@ const AppLayout = () => {
       return
     }
 
-    // Pages that don't need a session
-    const publicPages = ['/', '/config', '/fit-check', '/products', '/coordinate-finder']
+    // Pages that never need a session
+    const publicPages = ['/', '/config', '/coordinate-finder']
     if (publicPages.includes(currentPath)) {
       return
     }
 
-    // Check for active session
+    // Check for active session (in-memory — cleared on reload)
     const session = unifiedKioskApi.getSession()
     if (!session && !sessionId) {
-      console.log('[App] No session for protected route, redirecting to home')
+      console.log('[App] No session (likely page reload), resetting and redirecting to idle')
+      resetSession()
       navigate('/', { replace: true })
       return
     }
@@ -162,7 +189,7 @@ const AppLayout = () => {
       console.log('[App] No gender set for flow page, redirecting to user-details')
       navigate('/user-details', { replace: true })
     }
-  }, [location.pathname, sessionId, userGender, navigate])
+  }, [location.pathname, sessionId, userGender, navigate, resetSession])
 
   // Check for pages that handle their own layout (full screen, white theme)
   const isFullScreenPage =

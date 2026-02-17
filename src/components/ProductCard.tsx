@@ -11,7 +11,7 @@ type ProductCardProps = {
   isSelected?: boolean
 }
 
-const ProductCard = memo(({ product, onClick, onTryOn, onPair, onDetails: _onDetails, isSelected = false }: ProductCardProps) => {
+const ProductCard = memo(({ product, onClick, onTryOn, onPair, isSelected = false }: ProductCardProps) => {
   const [imageLoaded, setImageLoaded] = useState(false)
   const [imageError, setImageError] = useState(false)
   const startPos = useRef({ x: 0, y: 0 })

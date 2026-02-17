@@ -73,6 +73,7 @@ import { api } from './api'
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 // Mock implementations (fallback)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const mockValidateImage = async (_img?: string): Promise<{ success: boolean }> => {
   await delay(1200)
   return { success: true }
@@ -85,6 +86,7 @@ const mockFetchProducts = async (): Promise<Product[]> => {
 
 const mockGetVtonResult = async (
   product: Product,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _userImage: string,
 ): Promise<{ url: string }> => {
   await delay(1800 + Math.random() * 600)

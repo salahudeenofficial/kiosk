@@ -19,6 +19,7 @@ export const captureFrameToDataUrl = async (
 
   if (useImageCapture) {
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const imageCapture = new (window as any).ImageCapture(track!)
       const bitmap: ImageBitmap = await imageCapture.grabFrame()
       sourceWidth = bitmap.width

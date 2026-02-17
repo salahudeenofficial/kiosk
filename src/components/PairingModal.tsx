@@ -1,21 +1,8 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { ProductListItem } from '../utils/productApi'
 import { formatPrice } from '../utils/validators'
-
-export const UPPER_GARMENTS = ['polo', 'shirt', 'hood', 'sweat', 'jacket', 'top', 'kurta', 'vest', 'coat', 'blazer']
-export const LOWER_GARMENTS = ['jean', 'trouser', 'pant', 'short', 'skirt', 'jogger', 'bottom', 'leg', 'chino', 'track']
-
-export const isUpperGarment = (category: string) => {
-    const c = category.toLowerCase()
-    return UPPER_GARMENTS.some(k => c.includes(k))
-}
-export const isLowerGarment = (category: string) => {
-    const c = category.toLowerCase()
-    return LOWER_GARMENTS.some(k => c.includes(k))
-}
-
-export const isEligibleForPairing = (category: string) => isUpperGarment(category) || isLowerGarment(category)
+import { isUpperGarment, isLowerGarment } from '../utils/garmentHelpers'
 
 type PairingModalProps = {
     isOpen: boolean
@@ -55,6 +42,7 @@ const PairingCard = ({ product }: { product: ProductListItem }) => (
 
 const PairingModal = ({ isOpen, onClose, product, availableProducts, onGenerate }: PairingModalProps) => {
     const [activeIndex, setActiveIndex] = useState(0)
+    const [candidates, setCandidates] = useState<ProductListItem[]>([])
 
     // Determine if the selected product is upper or lower
     const isSelectedUpper = useMemo(() => {
@@ -63,8 +51,12 @@ const PairingModal = ({ isOpen, onClose, product, availableProducts, onGenerate 
     }, [product])
 
     // Filter available products for the opposite category
-    const candidates = useMemo(() => {
-        if (!product) return []
+    useEffect(() => {
+        if (!product) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            setCandidates([])
+            return
+        }
         const targetIsUpper = !isSelectedUpper
 
         // Filter from available products
@@ -86,7 +78,7 @@ const PairingModal = ({ isOpen, onClose, product, availableProducts, onGenerate 
         }
 
         // Randomize once on mount
-        return matches.sort(() => 0.5 - Math.random())
+        setCandidates(matches.sort(() => 0.5 - Math.random())) // random is okay in effect
     }, [product, availableProducts, isSelectedUpper])
 
     // Current candidate

@@ -5,7 +5,6 @@ import LoadingPulse from '../components/UI/LoadingPulse'
 import useAutoNavigate from '../hooks/useAutoNavigate'
 import { useKioskStore } from '../store/kioskStore'
 import { unifiedKioskApi } from '../utils/unifiedKioskApi'
-import { MOCK_CONFIG } from '../utils/mockKioskApi'
 import Button from '../components/UI/Button'
 
 const ValidationScreen = () => {
@@ -15,7 +14,6 @@ const ValidationScreen = () => {
   const sessionId = useKioskStore((state) => state.sessionId)
   const setValidated = useKioskStore((state) => state.setValidated)
   const setUserImageUrl = useKioskStore((state) => state.setUserImageUrl)
-  const setUserMeasurements = useKioskStore((state) => state.setUserMeasurements)
 
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -44,17 +42,8 @@ const ValidationScreen = () => {
       setUserImageUrl(result.image_url)
       setValidated(true)
 
-      // In mock mode, fetch measurements after upload
-      if (MOCK_CONFIG.ENABLED || unifiedKioskApi.isMockMode()) {
-        try {
-          const measurementsResult = await unifiedKioskApi.getMeasurements()
-          if (measurementsResult.status === 'success' && measurementsResult.measurements) {
-            setUserMeasurements(measurementsResult.measurements)
-          }
-        } catch (err) {
-          console.warn('Failed to fetch measurements:', err)
-        }
-      }
+      // Measurements are now provided by the size-recommendation endpoint
+      // No separate measurements fetch needed
 
       // Navigate to products
       navigate('/products')

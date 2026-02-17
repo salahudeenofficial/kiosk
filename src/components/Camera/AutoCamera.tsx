@@ -22,14 +22,14 @@ const AutoCamera = () => {
   const [hasCaptured, setHasCaptured] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [countdown, setCountdown] = useState<number | null>(null)
-  const [_canStartCapture, setCanStartCapture] = useState(false)
-  const [_actualResolution, setActualResolution] = useState<string>('')
+  const [, setCanStartCapture] = useState(false)
+  const [, setActualResolution] = useState<string>('')
   const [isPoseValid, setIsPoseValid] = useState<boolean>(false)
   const [capturedImage, setCapturedImage] = useState<string | null>(null)
-  const [_zoomInfo, setZoomInfo] = useState<string>('')
+  const [, setZoomInfo] = useState<string>('')
   const navigate = useNavigate()
   const setUserImage = useKioskStore((state) => state.setUserImage)
-  const validatorRef = useRef(new PoseValidator(1500))
+  const validatorRef = useRef(new PoseValidator(800))
   const poseDetectorRef = useRef<PoseDetector | null>(null)
   const intervalRef = useRef<number | null>(null)
   const countdownRef = useRef<number | null>(null)
@@ -98,7 +98,7 @@ const AutoCamera = () => {
 
         try {
           await videoRef.current.play()
-        } catch (playErr: any) {
+        } catch (playErr: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
           console.log('Video play interrupted:', playErr)
           if (playErr.name !== 'AbortError') {
             return
@@ -116,6 +116,7 @@ const AutoCamera = () => {
 
           // Apply zoom level if camera supports it - log all capabilities for debugging
           if ('getCapabilities' in track) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const capabilities = track.getCapabilities() as any
             console.log('[Camera] Full capabilities:', JSON.stringify(capabilities, null, 2))
 
@@ -128,6 +129,7 @@ const AutoCamera = () => {
               const targetZoom = CAMERA_ZOOM_LEVEL <= 1.0 ? min : Math.max(min, Math.min(max, CAMERA_ZOOM_LEVEL))
 
               try {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 await track.applyConstraints({ advanced: [{ zoom: targetZoom } as any] })
                 setZoomInfo(`${targetZoom.toFixed(1)}x (range: ${min}-${max})`)
                 console.log(`[Camera] ✓ Applied zoom: ${targetZoom}x (widest possible = ${min})`)
@@ -143,7 +145,7 @@ const AutoCamera = () => {
         }
 
         startCountdown()
-      } catch (err: any) {
+      } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
         console.error('Camera error:', err)
         let errorMessage = 'Camera permission is required to continue.'
 
@@ -257,11 +259,12 @@ const AutoCamera = () => {
 
     startCamera()
 
+    const validator = validatorRef.current
     return () => {
       isMounted = false
       if (intervalRef.current) window.clearInterval(intervalRef.current)
       if (countdownRef.current) window.clearInterval(countdownRef.current)
-      validatorRef.current.reset()
+      validator.reset()
       poseDetectorRef.current?.close()
       poseDetectorRef.current = null
       const currentStream = streamRef.current || stream

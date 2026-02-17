@@ -48,6 +48,7 @@ const FiltersDrawer = ({
   const [localFilters, setLocalFilters] = useState<Filters>(filters)
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (isOpen) setLocalFilters(filters)
   }, [isOpen, filters])
 

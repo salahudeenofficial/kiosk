@@ -622,7 +622,7 @@ export const kioskApi = {
         let headers: Record<string, string>
         try {
             headers = session ? getSessionHeaders() : getKioskHeaders()
-        } catch (e) {
+        } catch {
             // If kiosk not configured, we can't make this call
             throw new Error('Kiosk not configured')
         }
@@ -639,6 +639,7 @@ export const kioskApi = {
                 signal: AbortSignal.timeout(API_CONFIG.TIMEOUT),
             })
 
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const data: ApiResponse<any> = await response.json()
 
             if (!response.ok || !data.success || !data.data) {
@@ -664,6 +665,7 @@ export const kioskApi = {
                 imageCount: rawProduct.imageCount,
                 firstImageFilename: rawProduct.images?.[0]?.filename || '',
                 attributes: {}, // Not in new response, defaulting
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 images: rawProduct.images.map((img: any) => ({
                     filename: img.filename,
                     url: img.imageUrl, // Presigned URL
@@ -705,6 +707,7 @@ export const kioskApi = {
         const url = getApiUrl(`${API_CONFIG.ENDPOINTS.KIOSK_SESSION_VTON}/${session.sessionId}/vton`)
 
         try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const body: any = { garment_ids: garmentIds }
             if (stitch) {
                 body.stitch = true

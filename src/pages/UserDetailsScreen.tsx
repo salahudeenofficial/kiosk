@@ -27,9 +27,9 @@ const UserDetailsScreen = () => {
       setIsFullscreen(
         !!(
           document.fullscreenElement ||
-          (document as any).webkitFullscreenElement ||
-          (document as any).mozFullScreenElement ||
-          (document as any).msFullscreenElement
+          (document as any).webkitFullscreenElement || // eslint-disable-line @typescript-eslint/no-explicit-any
+          (document as any).mozFullScreenElement || // eslint-disable-line @typescript-eslint/no-explicit-any
+          (document as any).msFullscreenElement // eslint-disable-line @typescript-eslint/no-explicit-any
         )
       )
     }
@@ -62,25 +62,25 @@ const UserDetailsScreen = () => {
         const elem = document.documentElement
         if (elem.requestFullscreen) {
           await elem.requestFullscreen()
-        } else if ((elem as any).webkitRequestFullscreen) {
+        } else if ((elem as any).webkitRequestFullscreen) { // eslint-disable-line @typescript-eslint/no-explicit-any
           // Safari
-          await (elem as any).webkitRequestFullscreen()
-        } else if ((elem as any).mozRequestFullScreen) {
+          await (elem as any).webkitRequestFullscreen() // eslint-disable-line @typescript-eslint/no-explicit-any
+        } else if ((elem as any).mozRequestFullScreen) { // eslint-disable-line @typescript-eslint/no-explicit-any
           // Firefox
-          await (elem as any).mozRequestFullScreen()
-        } else if ((elem as any).msRequestFullscreen) {
+          await (elem as any).mozRequestFullScreen() // eslint-disable-line @typescript-eslint/no-explicit-any
+        } else if ((elem as any).msRequestFullscreen) { // eslint-disable-line @typescript-eslint/no-explicit-any
           // IE/Edge
-          await (elem as any).msRequestFullscreen()
+          await (elem as any).msRequestFullscreen() // eslint-disable-line @typescript-eslint/no-explicit-any
         }
       } else {
         if (document.exitFullscreen) {
           await document.exitFullscreen()
-        } else if ((document as any).webkitExitFullscreen) {
-          await (document as any).webkitExitFullscreen()
-        } else if ((document as any).mozCancelFullScreen) {
-          await (document as any).mozCancelFullScreen()
-        } else if ((document as any).msExitFullscreen) {
-          await (document as any).msExitFullscreen()
+        } else if ((document as any).webkitExitFullscreen) { // eslint-disable-line @typescript-eslint/no-explicit-any
+          await (document as any).webkitExitFullscreen() // eslint-disable-line @typescript-eslint/no-explicit-any
+        } else if ((document as any).mozCancelFullScreen) { // eslint-disable-line @typescript-eslint/no-explicit-any
+          await (document as any).mozCancelFullScreen() // eslint-disable-line @typescript-eslint/no-explicit-any
+        } else if ((document as any).msExitFullscreen) { // eslint-disable-line @typescript-eslint/no-explicit-any
+          await (document as any).msExitFullscreen() // eslint-disable-line @typescript-eslint/no-explicit-any
         }
       }
     } catch (err) {

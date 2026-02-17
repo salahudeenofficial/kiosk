@@ -24,6 +24,7 @@ const ConfigScreen = () => {
     useEffect(() => {
         const config = unifiedKioskApi.getConfig()
         if (config) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setClientId(config.clientId)
             setKioskId(config.kioskId)
             setConfigInfo({

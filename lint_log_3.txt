@@ -1,0 +1,10 @@
+
+> kiosk-frontend@0.0.0 lint
+> eslint .
+
+
+/home/fashionx/front-ends/kiosk/src/components/Camera/AutoCamera.tsx
+  266:20  warning  The ref value 'validatorRef.current' will likely have changed by the time this effect cleanup function runs. If this ref points to a node rendered by React, copy 'validatorRef.current' to a variable inside the effect, and use that variable in the cleanup function  react-hooks/exhaustive-deps
+
+✖ 1 problem (0 errors, 1 warning)
+

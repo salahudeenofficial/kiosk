@@ -14,16 +14,34 @@ import './FitCheckScreen.css'
 // Helper types
 // (Removed Point and LineSegment types as they are no longer used)
 // Measurement Metadata for labels and ordering
+// Maps any API key (lowercased) to a canonical stick-figure key
+// Maps any API key to a canonical display key.
+// Handles both details keys (chest, shoulder_width, waist)
+// and user_measurements keys (chest circumference, shoulder breadth, waist circumference)
+const toCanonicalKey = (raw: string): string | null => {
+    const k = raw.toLowerCase()
+    if (k.includes('chest') || k.includes('bust')) return 'chest'
+    if (k.includes('shoulder')) return 'shoulder'
+    if (k.includes('waist')) return 'waist'
+    if (k.includes('hip')) return 'hip'
+    if (k.includes('sleeve') || k === 'arm right length' || k === 'arm left length') return 'sleeve_length'
+    if (k.includes('inseam') || k === 'inside leg height') return 'inseam'
+    if (k.includes('thigh')) return 'thigh'
+    if (k.includes('neck')) return 'neck'
+    if (k === 'height') return 'height'
+    return null
+}
+
 const MEASUREMENT_METADATA: Record<string, { label: string, priority: number }> = {
     chest: { label: 'Chest', priority: 1 },
-    shoulder_width: { label: 'Shoulder', priority: 2 },
-    shoulder: { label: 'Shoulder', priority: 2 }, // fallback
+    shoulder: { label: 'Shoulder', priority: 2 },
     waist: { label: 'Waist', priority: 3 },
     hip: { label: 'Hips', priority: 4 },
     sleeve_length: { label: 'Sleeve', priority: 5 },
     inseam: { label: 'Inseam', priority: 6 },
     thigh: { label: 'Thigh', priority: 7 },
     neck: { label: 'Neck', priority: 8 },
+    height: { label: 'Height', priority: 9 },
 }
 
 
@@ -84,7 +102,9 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
         });
     }, [recommendations]);
 
-    // Load Data
+    // Load Data - use pre-fetched recommendations from store, fetch only if missing
+    const storedRecommendations = useKioskStore((state) => state.sizeRecommendations)
+
     useEffect(() => {
         const loadData = async () => {
             let garmentIds = location.state?.garmentIds as number[] || []
@@ -110,22 +130,26 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
             }
 
             try {
+                // Use pre-fetched recommendations from store, fetch only for missing ones
                 const results = await Promise.all(
-                    garmentIds.map(id => unifiedKioskApi.getSizeRecommendation(id))
+                    garmentIds.map(async (id) => {
+                        const stored = storedRecommendations[id.toString()]
+                        if (stored && stored.measurement_status !== 'processing') {
+                            console.log(`[FitCheck] Using pre-fetched recommendation for ${id}`)
+                            return stored
+                        }
+                        console.log(`[FitCheck] Fetching recommendation for ${id}`)
+                        return unifiedKioskApi.getSizeRecommendation(id)
+                    })
                 )
-                console.log('[FitCheck] Raw API Response:', results)
+                console.log('[FitCheck] Recommendations:', results)
                 setRecommendations(results)
 
-                // Set default size logic:
-                // 1. Recommended size (if exists)
-                // 2. First available size in the list
-                // 3. Keep current if valid? (Simplified: just reset to best guess)
-
-                const recSize = results[0]?.recommended_size;
+                const recSize = results[0]?.recommended_size
                 if (recSize) {
-                    setSize(recSize);
+                    setSize(recSize)
                 } else if (results[0]?.all_sizes?.length > 0) {
-                    setSize(results[0].all_sizes[0].size); // Default to first available
+                    setSize(results[0].all_sizes[0].size)
                 }
             } catch (err) {
                 console.error("Failed to load size recommendations", err)
@@ -134,7 +158,7 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
             }
         }
         loadData()
-    }, [location.state])
+    }, [location.state, storedRecommendations])
 
     // Get selected size details for rendering
     const selectedSizeDetails = useMemo(() => {
@@ -165,26 +189,12 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
 
         if (selectedSizeDetails) {
             Object.entries(selectedSizeDetails).forEach(([key, detail]) => {
-                // Map keys to standard stick figure keys (chest, waist, shoulder, hip)
-                const normalizedKey = key.toLowerCase();
-                let stickKey: string | null = null;
-
-                if (normalizedKey.includes('chest') || normalizedKey.includes('bust')) stickKey = 'chest';
-                else if (normalizedKey.includes('waist')) stickKey = 'waist';
-                else if (normalizedKey.includes('shoulder')) stickKey = 'shoulder';
-                else if (normalizedKey.includes('hip')) stickKey = 'hip';
+                const stickKey = toCanonicalKey(key)
 
                 if (stickKey && stickKey in scores) {
-                    // Always calculate as (Garment - User) so that:
-                    // Positive = Loose (Garment is bigger) -> Blue
-                    // Negative = Tight (Garment is smaller) -> Red
                     if (typeof detail.chart === 'number' && typeof detail.user === 'number') {
                         scores[stickKey] = detail.chart - detail.user
                     } else if (typeof detail.diff_cm === 'number') {
-                        // Fallback: If diff_cm is provided, assume it might be (User - Garment) which caused the reverse issue.
-                        // We'll flip it just in case, or stick to the manual calc preference.
-                        // If the user said it's reversed, likely diff_cm was (User - Garment).
-                        // Let's invert it if we are forced to use it.
                         scores[stickKey] = -detail.diff_cm
                     }
                 }
@@ -204,22 +214,38 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
         }
     }
 
-    // Sort keys for display
-    const sortedMeasurementKeys = useMemo(() => {
-        const detailKeys = selectedSizeDetails ? Object.keys(selectedSizeDetails) : [];
-        const userKeys = recommendations[0]?.user_measurements ? Object.keys(recommendations[0].user_measurements) : [];
+    // Build deduplicated measurement entries for display
+    // Merges details keys (chest, shoulder_width) and user_measurements keys (chest circumference, shoulder breadth)
+    // into canonical entries, avoiding duplicates
+    const displayMeasurements = useMemo(() => {
+        const seen = new Map<string, { canonKey: string; value: number }>()
 
-        // Merge unique keys
-        const allKeys = Array.from(new Set([...detailKeys, ...userKeys]));
+        // First pass: user_measurements (long-form keys like "chest circumference")
+        const userM = recommendations[0]?.user_measurements
+        if (userM) {
+            Object.entries(userM).forEach(([key, val]) => {
+                const canon = toCanonicalKey(key)
+                if (canon && typeof val === 'number' && !seen.has(canon)) {
+                    seen.set(canon, { canonKey: canon, value: val })
+                }
+            })
+        }
 
-        return allKeys.sort((a, b) => {
-            const pA = MEASUREMENT_METADATA[a]?.priority || 99
-            const pB = MEASUREMENT_METADATA[b]?.priority || 99
+        // Second pass: details.user values (short-form keys like "chest", "shoulder_width")
+        // These override user_measurements since they're contextual to the garment
+        if (selectedSizeDetails) {
+            Object.entries(selectedSizeDetails).forEach(([key, detail]) => {
+                const canon = toCanonicalKey(key)
+                if (canon && typeof detail.user === 'number') {
+                    seen.set(canon, { canonKey: canon, value: detail.user })
+                }
+            })
+        }
 
-            // If priorities are equal (both 99 or both explicitly same), fallback to alphabet
-            if (pA === pB) {
-                return a.localeCompare(b);
-            }
+        // Sort by priority
+        return Array.from(seen.values()).sort((a, b) => {
+            const pA = MEASUREMENT_METADATA[a.canonKey]?.priority || 99
+            const pB = MEASUREMENT_METADATA[b.canonKey]?.priority || 99
             return pA - pB
         })
     }, [selectedSizeDetails, recommendations])
@@ -268,29 +294,18 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
                             </div>
 
                             {/* Measurement Rows */}
-                            {/* Measurement Rows */}
-                            {sortedMeasurementKeys.length > 0 ? (
-                                sortedMeasurementKeys.map(key => {
-                                    // Try to get detail from selected size, otherwise basic user measurement
-                                    const detail = selectedSizeDetails?.[key];
-                                    const userMeasurement = recommendations[0]?.user_measurements?.[key];
-
-                                    // Value to display: prefer detail.user (contextual), then userMeasurement
-                                    const displayValue = detail?.user ?? userMeasurement;
-
-                                    // Skip if no value found
-                                    if (displayValue === undefined || displayValue === null) return null;
-
-                                    const meta = MEASUREMENT_METADATA[key] || { label: key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ') }
+                            {displayMeasurements.length > 0 ? (
+                                displayMeasurements.map(({ canonKey, value }) => {
+                                    const meta = MEASUREMENT_METADATA[canonKey] || { label: canonKey.charAt(0).toUpperCase() + canonKey.slice(1).replace(/_/g, ' ') }
 
                                     return (
                                         <div
-                                            key={key}
+                                            key={canonKey}
                                             className="fit-measurement-row grid-cols-2"
                                         >
                                             <div className="fit-m-label">{meta.label}</div>
                                             <div className="fit-m-value">
-                                                {typeof displayValue === 'number' ? `${displayValue.toFixed(1)} cm` : displayValue}
+                                                {canonKey === 'height' ? `${value.toFixed(1)} cm` : `${value.toFixed(1)} cm`}
                                             </div>
                                         </div>
                                     )

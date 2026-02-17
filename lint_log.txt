@@ -1,0 +1,160 @@
+
+> kiosk-frontend@0.0.0 lint
+> eslint .
+
+
+/home/fashionx/front-ends/kiosk/src/components/Camera/AutoCamera.tsx
+   25:10  error    '_canStartCapture' is assigned a value but never used                                                                                                                                                                                                                    @typescript-eslint/no-unused-vars
+   26:10  error    '_actualResolution' is assigned a value but never used                                                                                                                                                                                                                   @typescript-eslint/no-unused-vars
+   29:10  error    '_zoomInfo' is assigned a value but never used                                                                                                                                                                                                                           @typescript-eslint/no-unused-vars
+  101:27  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  119:61  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  131:83  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  146:21  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  264:20  warning  The ref value 'validatorRef.current' will likely have changed by the time this effect cleanup function runs. If this ref points to a node rendered by React, copy 'validatorRef.current' to a variable inside the effect, and use that variable in the cleanup function  react-hooks/exhaustive-deps
+
+/home/fashionx/front-ends/kiosk/src/components/FiltersDrawer.tsx
+  51:17  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/fashionx/front-ends/kiosk/src/components/FiltersDrawer.tsx:51:17
+  49 |
+  50 |   useEffect(() => {
+> 51 |     if (isOpen) setLocalFilters(filters)
+     |                 ^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  52 |   }, [isOpen, filters])
+  53 |
+  54 |   const handleFilterChange = (key: keyof Filters, value: string | number | undefined) => {  react-hooks/set-state-in-effect
+
+/home/fashionx/front-ends/kiosk/src/components/FitCheck/StickFigure.tsx
+  46:68  error  '_gender' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/home/fashionx/front-ends/kiosk/src/components/PairingModal.tsx
+   6:14  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       react-refresh/only-export-components
+   7:14  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       react-refresh/only-export-components
+   9:14  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       react-refresh/only-export-components
+  13:14  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       react-refresh/only-export-components
+  18:14  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       react-refresh/only-export-components
+  89:41  error  Error: Cannot call impure function during render
+
+`Math.random` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+/home/fashionx/front-ends/kiosk/src/components/PairingModal.tsx:89:41
+  87 |
+  88 |         // Randomize once on mount
+> 89 |         return matches.sort(() => 0.5 - Math.random())
+     |                                         ^^^^^^^^^^^^^ Cannot call impure function
+  90 |     }, [product, availableProducts, isSelectedUpper])
+  91 |
+  92 |     // Current candidate  react-hooks/purity
+
+/home/fashionx/front-ends/kiosk/src/components/ProductCard.tsx
+  14:75  error  '_onDetails' is defined but never used  @typescript-eslint/no-unused-vars
+
+/home/fashionx/front-ends/kiosk/src/hooks/useSessionTimeout.ts
+  28:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/fashionx/front-ends/kiosk/src/hooks/useSessionTimeout.ts:28:5
+  26 |   // Reset timer when location changes (so we start fresh with new limit)
+  27 |   useEffect(() => {
+> 28 |     resetTimer()
+     |     ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  29 |   }, [location.pathname, resetTimer])
+  30 |
+  31 |   // Handle session timeout  react-hooks/set-state-in-effect
+
+/home/fashionx/front-ends/kiosk/src/pages/ConfigScreen.tsx
+  27:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/fashionx/front-ends/kiosk/src/pages/ConfigScreen.tsx:27:13
+  25 |         const config = unifiedKioskApi.getConfig()
+  26 |         if (config) {
+> 27 |             setClientId(config.clientId)
+     |             ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  28 |             setKioskId(config.kioskId)
+  29 |             setConfigInfo({
+  30 |                 locationName: config.locationName,  react-hooks/set-state-in-effect
+
+/home/fashionx/front-ends/kiosk/src/pages/IdleScreen.tsx
+  28:24  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  29:24  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  30:24  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  55:29  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  57:26  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  58:29  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  60:26  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  61:29  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  63:26  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  68:33  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  69:30  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  70:33  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  71:30  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  72:33  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  73:30  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/home/fashionx/front-ends/kiosk/src/pages/ProductList.tsx
+  110:6  warning  React Hook useEffect has a missing dependency: 'productListScrollPosition'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/home/fashionx/front-ends/kiosk/src/pages/TryOnResultsScreen.tsx
+  110:24  warning  The ref value 'eventSourceRef.current' will likely have changed by the time this effect cleanup function runs. If this ref points to a node rendered by React, copy 'eventSourceRef.current' to a variable inside the effect, and use that variable in the cleanup function  react-hooks/exhaustive-deps
+
+/home/fashionx/front-ends/kiosk/src/pages/UserDetailsScreen.tsx
+  30:24  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  31:24  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  32:24  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  65:29  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  67:26  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  68:29  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  70:26  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  71:29  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  73:26  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  78:33  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  79:30  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  80:33  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  81:30  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  82:33  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  83:30  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/home/fashionx/front-ends/kiosk/src/utils/imageUtils.ts
+  22:43  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/home/fashionx/front-ends/kiosk/src/utils/kioskApi.ts
+  625:18  error  'e' is defined but never used             @typescript-eslint/no-unused-vars
+  642:37  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  667:53  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  708:25  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/home/fashionx/front-ends/kiosk/src/utils/mockApi.ts
+  76:34  error  '_img' is defined but never used        @typescript-eslint/no-unused-vars
+  88:3   error  '_userImage' is defined but never used  @typescript-eslint/no-unused-vars
+
+/home/fashionx/front-ends/kiosk/src/utils/mockKioskApi.ts
+  456:23  error  '_imageFile' is defined but never used    @typescript-eslint/no-unused-vars
+  537:27  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  538:27  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  666:61  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/home/fashionx/front-ends/kiosk/src/utils/unifiedKioskApi.ts
+  123:17  error  'filteredCategories' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  192:61  error  Unexpected any. Specify a different type                 @typescript-eslint/no-explicit-any
+  213:41  error  Unexpected any. Specify a different type                 @typescript-eslint/no-explicit-any
+
+✖ 65 problems (62 errors, 3 warnings)
+

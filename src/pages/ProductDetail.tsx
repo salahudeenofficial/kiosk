@@ -9,7 +9,8 @@ import useAutoNavigate from '../hooks/useAutoNavigate'
 import { formatPrice } from '../utils/validators'
 import { unifiedKioskApi } from '../utils/unifiedKioskApi'
 import { useKioskStore } from '../store/kioskStore'
-import PairingModal, { isEligibleForPairing } from '../components/PairingModal'
+import PairingModal from '../components/PairingModal'
+import { isEligibleForPairing } from '../utils/garmentHelpers'
 import type { ProductListItem, ProductDetails } from '../utils/productApi'
 import type { VtonJob } from '../utils/kioskApi'
 
@@ -29,18 +30,63 @@ const ProductDetail = () => {
   const [availableProducts, setAvailableProducts] = useState<ProductListItem[]>([])
   const updateVtonJob = useKioskStore((state) => state.updateVtonJob)
 
-  const handleTryOn = () => {
-    if (product) {
-      addSelectedProduct({
-        id: product.productId.toString(),
-        title: product.name,
-        image: product.images?.[0]?.url || '',
-        price: product.mrp,
-        description: product.brand?.name || '',
-        sizes: product.sizes || []
-      })
-      navigate(-1)
+  const selectedProducts = useKioskStore((state) => state.selectedProducts)
+  const removeSelectedProduct = useKioskStore((state) => state.removeSelectedProduct)
+  const setSizeRecommendation = useKioskStore((state) => state.setSizeRecommendation)
+  const setUserMeasurements = useKioskStore((state) => state.setUserMeasurements)
+
+  const handleTryOn = async () => {
+    if (!product) return
+
+    const productId = product.productId.toString()
+    const isSelected = selectedProducts.some((p) => p.id === productId)
+
+    if (isSelected) {
+      removeSelectedProduct(productId)
+      return
     }
+
+    addSelectedProduct({
+      id: productId,
+      title: product.name,
+      image: product.images?.[0]?.url || '',
+      price: product.mrp,
+      description: product.brand?.name || '',
+      sizes: product.sizes || []
+    })
+
+    // Trigger VTON request + size recommendation (same as ProductList)
+    updateVtonJob(productId, 'RUNNING', null)
+
+    const vtonPromise = (async () => {
+      try {
+        const response = await unifiedKioskApi.requestVton([product.productId], false)
+        response.jobs.forEach((j) => {
+          const job = j as VtonJob
+          if (job.garment_id) {
+            updateVtonJob(job.garment_id.toString(), job.status, null, undefined, job.job_id)
+          }
+        })
+      } catch (err) {
+        console.error('VTON request failed:', err)
+        updateVtonJob(productId, 'FAILED', null, err instanceof Error ? err.message : 'Unknown error')
+      }
+    })()
+
+    const recPromise = (async () => {
+      try {
+        const rec = await unifiedKioskApi.getSizeRecommendation(product.productId)
+        setSizeRecommendation(productId, rec)
+        if (rec.user_measurements && !useKioskStore.getState().userMeasurements) {
+          setUserMeasurements(rec.user_measurements)
+        }
+      } catch (err) {
+        console.warn(`[ProductDetail] Size recommendation failed:`, err)
+      }
+    })()
+
+    await Promise.all([vtonPromise, recPromise])
+    navigate(-1)
   }
 
   const toProductListItem = (p: ProductDetails): ProductListItem => ({

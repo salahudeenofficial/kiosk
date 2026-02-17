@@ -115,12 +115,10 @@ export const unifiedKioskApi = {
 
         if (shouldUseMock()) {
             const { MOCK_PRODUCTS, CATEGORIES } = await import('./mockKioskApi')
-            let filteredCategories = [...CATEGORIES]
             let filteredProducts = [...MOCK_PRODUCTS]
 
             if (filters.gender) {
                 filteredProducts = filteredProducts.filter(p => p.category.gender === filters.gender)
-                filteredCategories = filteredCategories.filter(c => c.gender === filters.gender)
             }
 
             if (filters.search) {
@@ -143,6 +141,7 @@ export const unifiedKioskApi = {
             const maxPrice = prices.length > 0 ? Math.max(...prices) : 0
 
             // When gender is omitted, return all categories (all genders). Otherwise use gender-filtered.
+            // Since we removed filteredCategories which was unused, we just use categoryMap or base CATEGORIES
             const categories =
                 filters.gender
                     ? Array.from(categoryMap.values()).sort((a, b) => a.name.localeCompare(b.name))
@@ -189,6 +188,7 @@ export const unifiedKioskApi = {
     },
 
     // Size Recommendation
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     async getSizeRecommendation(productId: number): Promise<any> {
         console.log(`[UnifiedAPI] getSizeRecommendation - mode: ${shouldUseMock() ? 'MOCK' : 'REAL'}`)
 
@@ -210,6 +210,7 @@ export const unifiedKioskApi = {
             setTimeout(() => {
                 const imageUrl = 'https://via.placeholder.com/768x1024?text=Mock+Try-On+Result'
 
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 result.jobs.forEach((j: any) => {
                     if (stitch && j.garment_ids) {
                         // For stitch, emit success for all garment IDs sharing the same image

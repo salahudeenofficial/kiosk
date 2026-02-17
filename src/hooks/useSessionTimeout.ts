@@ -25,6 +25,7 @@ const useSessionTimeout = () => {
 
   // Reset timer when location changes (so we start fresh with new limit)
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     resetTimer()
   }, [location.pathname, resetTimer])
 

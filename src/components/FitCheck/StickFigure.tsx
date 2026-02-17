@@ -43,7 +43,7 @@ const getColorForScore = (score: number | null) => {
     return '#3b82f6'; // Blue (Loose > 4)
 };
 
-const StickFigure: React.FC<StickFigureProps> = ({ scores, gender: _gender = 'female' }) => {
+const StickFigure: React.FC<StickFigureProps> = ({ scores }) => {
     // Colors for dynamic parts
     const shoulderColor = getColorForScore(scores['shoulder']);
     const chestColor = getColorForScore(scores['chest']);

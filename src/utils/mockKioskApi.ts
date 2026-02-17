@@ -311,23 +311,11 @@ const DEFAULT_SESSION_STATE: MockSessionState = {
     measurements: null,
 }
 
-// Try to load from localStorage
+// In-memory session state (cleared on page reload)
 let mockSessionState: MockSessionState = DEFAULT_SESSION_STATE
-try {
-    const saved = localStorage.getItem('mock_session_state')
-    if (saved) {
-        mockSessionState = JSON.parse(saved)
-    }
-} catch (e) {
-    console.warn('Failed to load mock session state', e)
-}
 
 const saveSessionState = () => {
-    try {
-        localStorage.setItem('mock_session_state', JSON.stringify(mockSessionState))
-    } catch (e) {
-        console.warn('Failed to save mock session state', e)
-    }
+    // In-memory only - no persistence
 }
 
 // ============================================================================
@@ -453,6 +441,7 @@ export const mockKioskApi = {
     },
 
     // Image upload
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     async uploadImage(_imageFile: File | Blob) {
         await delay(MOCK_CONFIG.DELAY_MAX_MS * 2) // Longer delay for upload
         maybeThrowError()
@@ -534,7 +523,9 @@ export const mockKioskApi = {
             const direction = sortOrder === 'asc' ? 1 : -1
 
             filtered.sort((a, b) => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 let valA: any = a[sortBy as keyof typeof a]
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 let valB: any = b[sortBy as keyof typeof b]
 
                 // Handle special case for created_at (use productId as proxy)
@@ -663,6 +654,7 @@ export const mockKioskApi = {
     },
 
     // Get size recommendation
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     async getSizeRecommendation(productId: number): Promise<any> {
         await randomDelay()
         maybeThrowError()

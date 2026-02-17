@@ -120,26 +120,21 @@ export const clearKioskConfig = (): void => {
   localStorage.removeItem(KIOSK_CONFIG_STORAGE_KEY)
 }
 
+// In-memory session storage (cleared on page reload)
+let currentSession: KioskSession | null = null
+
 // Helper to get stored session
 export const getStoredSession = (): KioskSession | null => {
-  try {
-    const stored = sessionStorage.getItem(KIOSK_SESSION_STORAGE_KEY)
-    if (stored) {
-      return JSON.parse(stored)
-    }
-  } catch (e) {
-    console.error('Failed to parse stored session:', e)
-  }
-  return null
+  return currentSession
 }
 
 // Helper to store session
 export const storeSession = (session: KioskSession): void => {
-  sessionStorage.setItem(KIOSK_SESSION_STORAGE_KEY, JSON.stringify(session))
+  currentSession = session
 }
 
 // Helper to clear session
 export const clearSession = (): void => {
-  sessionStorage.removeItem(KIOSK_SESSION_STORAGE_KEY)
+  currentSession = null
 }
 

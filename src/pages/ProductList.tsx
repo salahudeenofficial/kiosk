@@ -14,7 +14,8 @@ import { unifiedKioskApi } from '../utils/unifiedKioskApi'
 import type { CatalogFilterBrand, CatalogFilterCategory, VtonJob } from '../utils/kioskApi'
 
 
-import PairingModal, { isEligibleForPairing } from '../components/PairingModal'
+import PairingModal from '../components/PairingModal'
+import { isEligibleForPairing } from '../utils/garmentHelpers'
 import tuckLogo from '../assets/tuck_logo.png'
 
 // Skeleton Card Component - Responsive fixed height matching ProductCard
@@ -65,6 +66,8 @@ const ProductList = () => {
 
   const vtonJobs = useKioskStore((state) => state.vtonJobs)
   const updateVtonJob = useKioskStore((state) => state.updateVtonJob)
+  const setSizeRecommendation = useKioskStore((state) => state.setSizeRecommendation)
+  const setUserMeasurements = useKioskStore((state) => state.setUserMeasurements)
 
   // State management
   const [products, setProducts] = useState<ProductListItem[]>([])
@@ -107,6 +110,7 @@ const ProductList = () => {
         }
       }, 100)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // Run once on mount
 
 
@@ -256,23 +260,35 @@ const ProductList = () => {
     fetchFilters()
   }, [search])
 
-  // Reset and load first page when filters/search/sort change
-  useEffect(() => {
-    setProducts([])
-    setPage(0)
-    setHasMore(true)
-    hasMoreRef.current = true
-    setError(null)
-    loadingRef.current = false
+  // Single effect to handle both filter resets and page changes.
+  // When filters/search/sort/gender change, reset to page 0 and load.
+  // When page changes (infinite scroll), load the next batch.
+  const prevFiltersRef = useRef({ search, filters, sortOption, userGender })
 
-    // We intentionally do NOT call loadProducts here.
-    // Setting page to 0 will trigger the page change effect below.
-  }, [filters, search, sortOption, userGender])
-
-  // Trigger load when page changes
   useEffect(() => {
+    const prev = prevFiltersRef.current
+    const filtersChanged =
+      prev.search !== search ||
+      prev.filters !== filters ||
+      prev.sortOption !== sortOption ||
+      prev.userGender !== userGender
+
+    if (filtersChanged) {
+      prevFiltersRef.current = { search, filters, sortOption, userGender }
+      setProducts([])
+      setHasMore(true)
+      hasMoreRef.current = true
+      setError(null)
+      loadingRef.current = false
+      if (page !== 0) {
+        setPage(0) // Will re-trigger this effect with page=0
+        return
+      }
+    }
+
     loadProducts()
-  }, [page, loadProducts])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, search, filters, sortOption, userGender])
 
 
 
@@ -311,35 +327,56 @@ const ProductList = () => {
   }
 
   const triggerVton = async (productIds: number[], stitch: boolean = false) => {
-    try {
-      // Optimistic update
-      productIds.forEach(id => {
-        updateVtonJob(id.toString(), 'RUNNING', null)
-      })
+    // Optimistic update
+    productIds.forEach(id => {
+      updateVtonJob(id.toString(), 'RUNNING', null)
+    })
 
-      const response = await unifiedKioskApi.requestVton(productIds, stitch)
-      console.log('[ProductList] VTON requested:', response)
+    // Fire VTON request and size recommendations in parallel
+    const vtonPromise = (async () => {
+      try {
+        const response = await unifiedKioskApi.requestVton(productIds, stitch)
+        console.log('[ProductList] VTON requested:', response)
 
-      // Update jobs with returned status (might be QUEUED or WAITING_MASK)
-      response.jobs.forEach((j) => {
-        const job = j as VtonJob
-        const status = job.status
-        const jobId = job.job_id
-        if (stitch && job.garment_ids) {
-          (job.garment_ids as number[]).forEach((gid: number) => {
-            updateVtonJob(gid.toString(), status, null, undefined, jobId)
-          })
-        } else if (job.garment_id) {
-          updateVtonJob(job.garment_id.toString(), status, null, undefined, jobId)
+        response.jobs.forEach((j) => {
+          const job = j as VtonJob
+          const status = job.status
+          const jobId = job.job_id
+          if (stitch && job.garment_ids) {
+            (job.garment_ids as number[]).forEach((gid: number) => {
+              updateVtonJob(gid.toString(), status, null, undefined, jobId)
+            })
+          } else if (job.garment_id) {
+            updateVtonJob(job.garment_id.toString(), status, null, undefined, jobId)
+          }
+        })
+      } catch (err) {
+        console.error('VTON request failed:', err)
+        productIds.forEach(id => {
+          updateVtonJob(id.toString(), 'FAILED', null, err instanceof Error ? err.message : 'Unknown error')
+        })
+      }
+    })()
+
+    // Fetch size recommendations for each product
+    const recPromise = Promise.all(
+      productIds.map(async (id) => {
+        try {
+          const rec = await unifiedKioskApi.getSizeRecommendation(id)
+          console.log(`[ProductList] Size recommendation for ${id}:`, rec)
+          setSizeRecommendation(id.toString(), rec)
+
+          // Store user measurements from the first successful response
+          if (rec.user_measurements && !useKioskStore.getState().userMeasurements) {
+            setUserMeasurements(rec.user_measurements)
+          }
+        } catch (err) {
+          console.warn(`[ProductList] Size recommendation failed for ${id}:`, err)
         }
       })
+    )
 
-    } catch (err) {
-      console.error('VTON request failed:', err)
-      productIds.forEach(id => {
-        updateVtonJob(id.toString(), 'FAILED', null, err instanceof Error ? err.message : 'Unknown error')
-      })
-    }
+    await Promise.all([vtonPromise, recPromise])
   }
 
   const handleTryOn = (e: React.MouseEvent, product: ProductListItem) => {

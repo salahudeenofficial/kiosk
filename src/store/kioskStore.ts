@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { Product } from '../utils/mockApi'
+import type { SizeRecommendationResponse } from '../utils/kioskApi'
 
 type KioskState = {
   // User session state
@@ -12,6 +13,7 @@ type KioskState = {
   vtonResult: string | null
   vtonResults: string[] // Array of try-on result URLs
   vtonJobs: Record<string, { jobId?: string; status: string; imageUrl: string | null; error?: string }> // Job status per garment ID
+  sizeRecommendations: Record<string, SizeRecommendationResponse> // Size recommendations per garment ID
   cart: Product[]
   sessionStartedAt: number
   userGender: 'male' | 'female' | null
@@ -43,6 +45,7 @@ type KioskState = {
   setVtonResult: (url: string | null) => void
   setVtonResults: (urls: string[]) => void
   updateVtonJob: (garmentId: string, status: string, imageUrl?: string | null, error?: string, jobId?: string) => void
+  setSizeRecommendation: (garmentId: string, recommendation: SizeRecommendationResponse) => void
   addToCart: (product: Product) => void
   removeFromCart: (id: string) => void
   clearCart: () => void
@@ -81,6 +84,7 @@ const baseState = () => ({
   vtonResult: null,
   vtonResults: [],
   vtonJobs: {},
+  sizeRecommendations: {},
   cart: [],
   sessionStartedAt: Date.now(),
   userGender: null,
@@ -145,6 +149,13 @@ export const useKioskStore = create<KioskState>()(
             },
           }
         }),
+      setSizeRecommendation: (garmentId, recommendation) =>
+        set((state) => ({
+          sizeRecommendations: {
+            ...state.sizeRecommendations,
+            [garmentId]: recommendation,
+          },
+        })),
       addToCart: (product) => {
         const exists = get().cart.some((item) => item.id === product.id)
         if (exists) return
@@ -204,16 +215,6 @@ export const useKioskStore = create<KioskState>()(
     {
       name: 'kiosk-storage',
       partialize: (state) => ({
-        selectedProducts: state.selectedProducts,
-        userGender: state.userGender,
-        userAge: state.userAge,
-        userHeight: state.userHeight,
-        userImageUrl: state.userImageUrl,
-        userMeasurements: state.userMeasurements,
-        sessionId: state.sessionId,
-        sessionToken: state.sessionToken,
-        sessionUserId: state.sessionUserId,
-        sessionExpiresAt: state.sessionExpiresAt,
         isConfigured: state.isConfigured,
       }),
     }
