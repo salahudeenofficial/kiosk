@@ -49,10 +49,16 @@ const GarmentFitCard = ({
     onSizeSelect: (size: string) => void
     label?: string
 }) => {
-    const sizes = recommendation?.all_sizes || []
+    const allSizes = recommendation?.all_sizes || []
     const recommended = recommendation?.recommended_size
     const fitType = recommendation?.fit_type
-    const selectedSizeInfo = sizes.find(s => s.size === selectedSize)
+    const selectedSizeInfo = allSizes.find(s => s.size === selectedSize)
+
+    // Derive size order from zone_colors keys (correct display order)
+    const zoneColorKeys = recommendation?.zone_colors ? Object.keys(recommendation.zone_colors) : []
+    const orderedSizes = zoneColorKeys.length > 0
+        ? zoneColorKeys.map(key => allSizes.find(s => s.size === key)).filter(Boolean) as typeof allSizes
+        : allSizes
 
     return (
         <div className="bg-white rounded-[1px] shadow-lg border border-black overflow-hidden h-full">
@@ -86,8 +92,7 @@ const GarmentFitCard = ({
 
                     {/* Size Tiles — auto-width to fit any label */}
                     <div className="flex flex-wrap gap-1.5 mt-2">
-                        {sizes.map(s => {
-                            if (!s.details) return null
+                        {orderedSizes.map(s => {
                             const isSelected = s.size === selectedSize
                             const isRec = s.size === recommended
                             return (

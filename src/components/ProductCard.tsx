@@ -62,7 +62,7 @@ const ProductCard = memo(({ product, onClick, onTryOn, onPair, isSelected = fals
 
   return (
     <div
-      className={`product-card-height flex flex-col h-full w-full overflow-hidden bg-white text-slate-900 rounded-none transition-all duration-200 ${isSelected
+      className={`flex flex-col w-full overflow-hidden bg-white text-slate-900 rounded-none transition-all duration-200 ${isSelected
         ? 'border border-slate-800 ring-1 ring-slate-800'
         : ''
         }`}
@@ -94,7 +94,7 @@ const ProductCard = memo(({ product, onClick, onTryOn, onPair, isSelected = fals
       </div>
 
       {/* Content Container */}
-      <div className="flex flex-col flex-1 p-0 min-h-0 bg-white">
+      <div className="flex flex-col p-0 bg-white">
 
         {/* Text Section */}
         <div className="px-2 pt-2 mb-2 w-full">

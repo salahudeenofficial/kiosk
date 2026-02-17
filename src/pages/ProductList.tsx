@@ -21,7 +21,7 @@ import tuckLogo from '../assets/tuck_logo.png'
 // Skeleton Card Component - Responsive fixed height matching ProductCard
 const SkeletonCard = () => (
   <div
-    className="product-card-height flex flex-col overflow-hidden bg-white rounded-3xl border border-slate-200 shadow-lg animate-pulse h-full"
+    className="flex flex-col overflow-hidden bg-white rounded-3xl border border-slate-200 shadow-lg animate-pulse"
   >
     {/* Image placeholder */}
     <div className="w-full h-[280px] sm:h-[320px] md:h-[360px] bg-slate-200 flex-shrink-0" />
@@ -582,7 +582,7 @@ const ProductList = () => {
           {/* Loading State - Skeleton Grid */}
           {loading && !products.length ? (
             <div
-              className="product-grid-rows grid grid-cols-3 gap-x-4 gap-y-4 sm:gap-x-5 sm:gap-y-5 lg:gap-x-4 lg:gap-y-4 w-full"
+              className="grid grid-cols-3 gap-x-4 gap-y-4 sm:gap-x-5 sm:gap-y-5 lg:gap-x-4 lg:gap-y-4 w-full"
             >
               {Array.from({ length: limit }).map((_, index) => (
                 <SkeletonCard key={`skeleton-${index}`} />
@@ -610,7 +610,7 @@ const ProductList = () => {
             <>
               {/* Product Grid - Large responsive grid */}
               <div
-                className="product-grid-rows grid grid-cols-3 gap-x-4 gap-y-4 sm:gap-x-5 sm:gap-y-5 lg:gap-x-4 lg:gap-y-4 w-full"
+                className="grid grid-cols-3 gap-x-4 gap-y-4 sm:gap-x-5 sm:gap-y-5 lg:gap-x-4 lg:gap-y-4 w-full"
               >
                 <AnimatePresence mode="popLayout">
                   {products.map((product, index) => (
