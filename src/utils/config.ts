@@ -40,6 +40,12 @@ export const API_CONFIG = {
   // Request timeout in milliseconds
   TIMEOUT: 30000,
 
+  // Upload-specific timeout (120s for large images on slow connections)
+  UPLOAD_TIMEOUT: 120000,
+
+  // Max upload retries on network failure
+  UPLOAD_MAX_RETRIES: 2,
+
   // Session timeout in minutes (for reference, server controls this)
   SESSION_TIMEOUT_MINUTES: 30,
 

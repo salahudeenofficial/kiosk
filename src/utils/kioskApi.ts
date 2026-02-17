@@ -175,6 +175,7 @@ export type SizeRecommendationResponse = {
     confidence: number
     fit_type: 'regular' | 'tight' | 'loose' | null
     all_sizes: SizeRecommendationOption[]
+    zone_colors?: Record<string, Record<string, string>>
     matched_measurements: string[]
     missing_measurements: string[]
     measurement_status: string
@@ -397,37 +398,55 @@ export const kioskApi = {
         }
 
         const url = getApiUrl(`${API_CONFIG.ENDPOINTS.KIOSK_SESSION_IMAGE}/${session.sessionId}/image`)
+        const maxRetries = API_CONFIG.UPLOAD_MAX_RETRIES
 
-        try {
-            const formData = new FormData()
-            formData.append('image', imageFile)
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            try {
+                const formData = new FormData()
+                formData.append('image', imageFile)
 
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: {
-                    ...getSessionHeaders(),
-                    // Don't set Content-Type - browser will set it with boundary
-                },
-                credentials: 'include',
-                body: formData,
-                signal: AbortSignal.timeout(API_CONFIG.TIMEOUT),
-            })
+                if (attempt > 0) {
+                    console.log(`[Upload] Retry attempt ${attempt}/${maxRetries}`)
+                }
 
-            const data: ApiResponse<ImageUploadResponse> = await response.json()
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        ...getSessionHeaders(),
+                        // Don't set Content-Type - browser will set it with boundary
+                    },
+                    credentials: 'include',
+                    body: formData,
+                    signal: AbortSignal.timeout(API_CONFIG.UPLOAD_TIMEOUT),
+                })
 
-            if (!response.ok || !data.success || !data.data) {
-                throw new Error(data.error?.message || `Image upload failed: ${response.status}`)
+                const data: ApiResponse<ImageUploadResponse> = await response.json()
+
+                if (!response.ok || !data.success || !data.data) {
+                    throw new Error(data.error?.message || `Image upload failed: ${response.status}`)
+                }
+
+                // Update session step
+                const updatedSession = { ...session, currentStep: data.data.current_step }
+                storeSession(updatedSession)
+
+                return data.data
+            } catch (error) {
+                const isRetryable = error instanceof TypeError
+                    || (error instanceof DOMException && error.name === 'TimeoutError')
+
+                if (isRetryable && attempt < maxRetries) {
+                    const delay = 1000 * (attempt + 1)
+                    console.warn(`[Upload] Attempt ${attempt + 1} failed, retrying in ${delay}ms...`, error)
+                    await new Promise(r => setTimeout(r, delay))
+                    continue
+                }
+                console.error('Image upload error:', error)
+                throw error
             }
-
-            // Update session step
-            const updatedSession = { ...session, currentStep: data.data.current_step }
-            storeSession(updatedSession)
-
-            return data.data
-        } catch (error) {
-            console.error('Image upload error:', error)
-            throw error
         }
+
+        throw new Error('Image upload failed after all retries')
     },
 
     /**

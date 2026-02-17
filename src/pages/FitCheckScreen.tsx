@@ -4,20 +4,11 @@ import MotionFade from '../components/UI/MotionFade'
 import StickFigure from '../components/FitCheck/StickFigure'
 import { useKioskStore } from '../store/kioskStore'
 import { unifiedKioskApi } from '../utils/unifiedKioskApi'
-import EndSessionButton from '../components/UI/EndSessionButton'
+import { formatPrice } from '../utils/validators'
 import type { SizeRecommendationResponse } from '../utils/kioskApi'
+import type { Product } from '../utils/mockApi'
 import './FitCheckScreen.css'
 
-// Hardcoded Measurement Chart removed - using API data
-
-// Measurements Configuration
-// Helper types
-// (Removed Point and LineSegment types as they are no longer used)
-// Measurement Metadata for labels and ordering
-// Maps any API key (lowercased) to a canonical stick-figure key
-// Maps any API key to a canonical display key.
-// Handles both details keys (chest, shoulder_width, waist)
-// and user_measurements keys (chest circumference, shoulder breadth, waist circumference)
 const toCanonicalKey = (raw: string): string | null => {
     const k = raw.toLowerCase()
     if (k.includes('chest') || k.includes('bust')) return 'chest'
@@ -44,10 +35,101 @@ const MEASUREMENT_METADATA: Record<string, { label: string, priority: number }> 
     height: { label: 'Height', priority: 9 },
 }
 
+// --- Compact Garment Fit Card for kiosk ---
+const GarmentFitCard = ({
+    product,
+    recommendation,
+    selectedSize,
+    onSizeSelect,
+    label,
+}: {
+    product: Product
+    recommendation: SizeRecommendationResponse | null
+    selectedSize: string
+    onSizeSelect: (size: string) => void
+    label?: string
+}) => {
+    const sizes = recommendation?.all_sizes || []
+    const recommended = recommendation?.recommended_size
+    const fitType = recommendation?.fit_type
+    const selectedSizeInfo = sizes.find(s => s.size === selectedSize)
 
+    return (
+        <div className="bg-white rounded-[1px] shadow-lg border border-black overflow-hidden h-full">
+            {label && (
+                <div className="px-3 pt-2 pb-0">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">{label}</span>
+                </div>
+            )}
+            <div className="flex gap-3 p-3">
+                {/* Product Image */}
+                <div className="w-16 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-slate-50">
+                    <img
+                        src={product.image}
+                        alt={product.title}
+                        className="w-full h-full object-cover"
+                        onError={(e) => { (e.target as HTMLImageElement).src = 'https://via.placeholder.com/200x260' }}
+                    />
+                </div>
 
-// ... (Rest of existing FitCheckScreen code, but map loop updated)
+                {/* Info + Sizes */}
+                <div className="flex-1 min-w-0">
+                    <p className="text-[9px] text-slate-400 uppercase tracking-widest font-semibold truncate">
+                        {product.description?.split('-')[0]?.trim() || 'Brand'}
+                    </p>
+                    <h3 className="text-xs font-bold text-slate-900 leading-tight mt-0.5 truncate">
+                        {product.title}
+                    </h3>
+                    <p className="text-xs font-semibold text-slate-900 mt-0.5">
+                        {formatPrice(product.price)}
+                    </p>
 
+                    {/* Size Tiles — auto-width to fit any label */}
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                        {sizes.map(s => {
+                            if (!s.details) return null
+                            const isSelected = s.size === selectedSize
+                            const isRec = s.size === recommended
+                            return (
+                                <button
+                                    key={s.size}
+                                    onClick={() => onSizeSelect(s.size)}
+                                    className={`min-w-[36px] h-9 px-2.5 flex items-center justify-center text-[11px] font-bold uppercase transition-all duration-150 whitespace-nowrap
+                                        ${isSelected
+                                            ? 'bg-black text-white shadow-lg scale-105'
+                                            : isRec
+                                                ? 'bg-white text-emerald-600 border-2 border-emerald-400 hover:bg-emerald-50'
+                                                : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-400'
+                                        }`}
+                                    style={{ fontFamily: 'Figtree, sans-serif' }}
+                                >
+                                    {s.size}
+                                </button>
+                            )
+                        })}
+                    </div>
+
+                    {/* Recommendation + fit */}
+                    <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                        {recommended && (
+                            <span className="text-[9px] font-bold uppercase tracking-wide text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-200">
+                                Recommended: {recommended}
+                            </span>
+                        )}
+                        {fitType && (
+                            <span className="text-[9px] text-slate-400">({fitType})</span>
+                        )}
+                        {selectedSizeInfo && (
+                            <span className={`text-[9px] font-semibold ${selectedSizeInfo.fit === 'regular' ? 'text-emerald-600' : selectedSizeInfo.fit === 'tight' ? 'text-red-500' : 'text-blue-500'}`}>
+                                {selectedSizeInfo.fit} fit
+                            </span>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+}
 
 interface FitCheckScreenProps {
     isOverlay?: boolean
@@ -58,58 +140,21 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
     const navigate = useNavigate()
     const location = useLocation()
     const userGender = useKioskStore((state) => state.userGender)
+    const selectedProducts = useKioskStore((state) => state.selectedProducts)
 
-
+    const resetSession = useKioskStore((state) => state.resetSession)
     const [isPanelOpen, setIsPanelOpen] = useState(false)
-    const [selectedSize, setSize] = useState<string>('M')
-    // manualScores removed
-
+    const [selectedSizes, setSelectedSizes] = useState<Record<number, string>>({})
     const [recommendations, setRecommendations] = useState<SizeRecommendationResponse[]>([])
+    const [garmentIds, setGarmentIds] = useState<number[]>([])
     const [loading, setLoading] = useState(true)
 
-    // Derive available sizes from recommendations
-    const availableSizes = useMemo(() => {
-        if (recommendations.length === 0) return [];
-        // Aggregate all unique sizes from all recommendations
-        const sizes = new Set<string>();
-        recommendations.forEach(rec => {
-            rec.all_sizes?.forEach(s => sizes.add(s.size));
-        });
-
-        const sizeArray = Array.from(sizes);
-
-        // Helper to sort sizes logically
-        const sizeOrder = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '2XL', '3XL', '4XL'];
-
-        return sizeArray.sort((a, b) => {
-            const aIndex = sizeOrder.indexOf(a.toUpperCase());
-            const bIndex = sizeOrder.indexOf(b.toUpperCase());
-
-            // If both are standard letter sizes, sort by index
-            if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
-            // If only A is standard, A comes first
-            if (aIndex !== -1) return -1;
-            // If only B is standard, B comes first
-            if (bIndex !== -1) return 1;
-
-            // If both are numbers, sort numerically
-            const aNum = parseFloat(a);
-            const bNum = parseFloat(b);
-            if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
-
-            // Fallback to alphabetical
-            return a.localeCompare(b);
-        });
-    }, [recommendations]);
-
-    // Load Data - use pre-fetched recommendations from store, fetch only if missing
     const storedRecommendations = useKioskStore((state) => state.sizeRecommendations)
 
     useEffect(() => {
         const loadData = async () => {
             let garmentIds = location.state?.garmentIds as number[] || []
 
-            // Fallback 1: Use selected products from store if available
             if (garmentIds.length === 0) {
                 const storeSelected = useKioskStore.getState().selectedProducts
                 if (storeSelected.length > 0) {
@@ -117,7 +162,6 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
                 }
             }
 
-            // Fallback 2: Dev mode default
             if (garmentIds.length === 0 && import.meta.env.DEV) {
                 console.log('[FitCheck] No garments found, using mock ID for dev')
                 garmentIds = [1001]
@@ -129,28 +173,32 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
                 return
             }
 
+            setGarmentIds(garmentIds)
+
             try {
-                // Use pre-fetched recommendations from store, fetch only for missing ones
                 const results = await Promise.all(
                     garmentIds.map(async (id) => {
                         const stored = storedRecommendations[id.toString()]
                         if (stored && stored.measurement_status !== 'processing') {
-                            console.log(`[FitCheck] Using pre-fetched recommendation for ${id}`)
                             return stored
                         }
-                        console.log(`[FitCheck] Fetching recommendation for ${id}`)
                         return unifiedKioskApi.getSizeRecommendation(id)
                     })
                 )
-                console.log('[FitCheck] Recommendations:', results)
                 setRecommendations(results)
 
-                const recSize = results[0]?.recommended_size
-                if (recSize) {
-                    setSize(recSize)
-                } else if (results[0]?.all_sizes?.length > 0) {
-                    setSize(results[0].all_sizes[0].size)
-                }
+                const initialSizes: Record<number, string> = {}
+                garmentIds.forEach((gid, idx) => {
+                    const rec = results[idx]
+                    if (rec?.recommended_size) {
+                        initialSizes[gid] = rec.recommended_size
+                    } else if (rec?.all_sizes?.length > 0) {
+                        initialSizes[gid] = rec.all_sizes[0].size
+                    } else {
+                        initialSizes[gid] = 'M'
+                    }
+                })
+                setSelectedSizes(initialSizes)
             } catch (err) {
                 console.error("Failed to load size recommendations", err)
             } finally {
@@ -160,51 +208,36 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
         loadData()
     }, [location.state, storedRecommendations])
 
-    // Get selected size details for rendering
-    const selectedSizeDetails = useMemo(() => {
-        if (!selectedSize) return null;
+    const perGarmentDetails = useMemo(() => {
+        return recommendations.map((rec, idx) => {
+            const gid = garmentIds[idx]
+            const size = selectedSizes[gid]
+            if (!size || !rec?.all_sizes) return null
+            const sizeOption = rec.all_sizes.find(s => s.size === size)
+            return sizeOption?.details || null
+        })
+    }, [recommendations, selectedSizes, garmentIds])
 
-        // Find the first recommendation that has details for the selected size
-        // We search through all recommendations (garments) to find one that supports this size
-        const targetSize = selectedSize; // Case-sensitive exact match preference, but fallback?? 
-        // User asked "take it as it is", so we try exact match first.
+    const selectedSizeDetails = perGarmentDetails[0] || null
 
-        for (const rec of recommendations) {
-            if (!rec?.all_sizes) continue;
-
-            // Try exact match first
-            const sizeOption = rec.all_sizes.find(s => s.size === targetSize);
-            if (sizeOption?.details) {
-                return sizeOption.details;
-            }
-        }
-        return null;
-    }, [recommendations, selectedSize])
-
-    // Calculate loose scores for StickFigure
-    const looseScores = useMemo(() => {
-        const scores: Record<string, number | null> = {
-            chest: null, waist: null, shoulder: null, hip: null
-        }
-
-        if (selectedSizeDetails) {
-            Object.entries(selectedSizeDetails).forEach(([key, detail]) => {
+    // Extract zone colors directly from API response for the selected size
+    const stickFigureColors = useMemo(() => {
+        const colors: Record<string, string> = {}
+        for (let idx = 0; idx < recommendations.length; idx++) {
+            const rec = recommendations[idx]
+            const gid = garmentIds[idx]
+            const size = selectedSizes[gid]
+            if (!size || !rec?.zone_colors?.[size]) continue
+            const zoneMap = rec.zone_colors[size]
+            Object.entries(zoneMap).forEach(([key, color]) => {
                 const stickKey = toCanonicalKey(key)
-
-                if (stickKey && stickKey in scores) {
-                    if (typeof detail.chart === 'number' && typeof detail.user === 'number') {
-                        scores[stickKey] = detail.chart - detail.user
-                    } else if (typeof detail.diff_cm === 'number') {
-                        scores[stickKey] = -detail.diff_cm
-                    }
+                if (stickKey && !colors[stickKey]) {
+                    colors[stickKey] = color
                 }
             })
         }
-
-        console.log('[FitCheck] Computed Loose Scores:', scores)
-        return scores
-    }, [selectedSizeDetails])
-
+        return colors
+    }, [recommendations, selectedSizes, garmentIds])
 
     const handleBack = () => {
         if (isOverlay && onClose) {
@@ -214,13 +247,8 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
         }
     }
 
-    // Build deduplicated measurement entries for display
-    // Merges details keys (chest, shoulder_width) and user_measurements keys (chest circumference, shoulder breadth)
-    // into canonical entries, avoiding duplicates
     const displayMeasurements = useMemo(() => {
         const seen = new Map<string, { canonKey: string; value: number }>()
-
-        // First pass: user_measurements (long-form keys like "chest circumference")
         const userM = recommendations[0]?.user_measurements
         if (userM) {
             Object.entries(userM).forEach(([key, val]) => {
@@ -230,9 +258,6 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
                 }
             })
         }
-
-        // Second pass: details.user values (short-form keys like "chest", "shoulder_width")
-        // These override user_measurements since they're contextual to the garment
         if (selectedSizeDetails) {
             Object.entries(selectedSizeDetails).forEach(([key, detail]) => {
                 const canon = toCanonicalKey(key)
@@ -241,8 +266,6 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
                 }
             })
         }
-
-        // Sort by priority
         return Array.from(seen.values()).sort((a, b) => {
             const pA = MEASUREMENT_METADATA[a.canonKey]?.priority || 99
             const pB = MEASUREMENT_METADATA[b.canonKey]?.priority || 99
@@ -250,154 +273,163 @@ const FitCheckScreen: React.FC<FitCheckScreenProps> = ({ isOverlay = false, onCl
         })
     }, [selectedSizeDetails, recommendations])
 
+    const isPaired = garmentIds.length > 1
+
+    // Build garment card data
+    const garmentCards = garmentIds.map((gid, idx) => {
+        const product = selectedProducts.find(p => p.id === gid.toString())
+        const pairedParent = selectedProducts.find(p => p.pairedProduct?.id === gid.toString())
+        const productData: Product | null = product
+            || (pairedParent?.pairedProduct ? {
+                id: pairedParent.pairedProduct.id,
+                title: pairedParent.pairedProduct.title,
+                price: pairedParent.pairedProduct.price,
+                image: pairedParent.pairedProduct.image,
+                description: pairedParent.pairedProduct.description,
+                sizes: pairedParent.pairedProduct.sizes || [],
+            } : null)
+
+        const rec = recommendations[idx] || null
+        if (!productData) return null
+
+        const label = isPaired
+            ? (idx === 0 ? 'Upper' : 'Lower')
+            : undefined
+
+        return { gid, productData, rec, label }
+    }).filter(Boolean) as { gid: number; productData: Product; rec: SizeRecommendationResponse | null; label?: string }[]
+
     return (
         <MotionFade>
-            <div className="fixed inset-0 bg-white text-slate-900 z-50 overflow-y-auto">
-                {/* Back Button */}
-                <EndSessionButton />
-                <button
-                    className="absolute top-4 left-4 z-50 p-2 rounded-full hover:bg-slate-100 transition-colors"
-                    onClick={handleBack}
-                    aria-label="Go Back"
-                >
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-                    </svg>
-                </button>
+            <div className="fixed inset-0 bg-white text-slate-900 z-50 overflow-hidden flex flex-col">
 
-                <div className="max-w-4xl mx-auto px-6 py-8 pb-24">
-                    {/* Header */}
-                    <div className="flex flex-col items-center mb-8 pt-12 text-center">
-                        <p className="text-sm uppercase tracking-[0.2em] text-slate-500 mb-2">
-                            ANALYSIS
-                        </p>
-                        <h1 className="text-clamp-title font-bold text-slate-900 tracking-tight mb-2">
-                            Fit Intelligence
-                        </h1>
-                        <p className="text-base text-slate-600 max-w-md mx-auto leading-relaxed">
-                            Personal fit recommendation based on your measurements
-                        </p>
+                {/* Top Bar */}
+                <div className="flex-shrink-0 relative flex items-center justify-center px-4 pt-8 pb-6">
+                    <button
+                        className="absolute left-4 w-10 h-10 flex items-center justify-center rounded-full border border-black hover:bg-slate-100 transition-colors"
+                        onClick={handleBack}
+                        aria-label="Go Back"
+                    >
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M15 19l-7-7 7-7" />
+                        </svg>
+                    </button>
+                    <h1 className="text-2xl font-light tracking-[0.2em] uppercase text-slate-900 text-center" style={{ fontFamily: 'Figtree, sans-serif' }}>Fit Intelligence</h1>
+                    <button
+                        className="absolute right-4 w-10 h-10 flex items-center justify-center rounded-full border border-black hover:bg-slate-100 transition-colors"
+                        onClick={async () => {
+                            try { await unifiedKioskApi.completeSession() } catch {}
+                            resetSession()
+                            navigate('/')
+                        }}
+                        aria-label="Close"
+                    >
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                    </button>
+                </div>
+
+                {/* === Hero: Stick Figure with side indicators === */}
+                <div className="flex-1 min-h-0 flex flex-row">
+
+                    {/* Left: Vertical color indicator */}
+                    <div className="flex-shrink-0 w-16 flex flex-col items-center justify-center pl-3 pr-1">
+                        <div className="flex flex-col items-center" style={{ height: '200px' }}>
+                            <span className="text-[9px] font-bold text-blue-500 mb-1.5">Loose</span>
+                            <div className="w-3 rounded-full overflow-hidden flex-1">
+                                <div className="w-full h-full" style={{
+                                    background: 'linear-gradient(to bottom, #3b82f6 0%, #22c55e 33%, #f97316 66%, #ef4444 100%)'
+                                }} />
+                            </div>
+                            <span className="text-[9px] font-bold text-red-500 mt-1.5">Tight</span>
+                        </div>
                     </div>
 
-                    {/* Main Content Container */}
-                    <div className="relative">
-                        {/* Measurements Panel (Collapsible from Left) */}
-                        <div className={`fit-measurements-panel ${isPanelOpen ? '' : 'collapsed'}`}>
-                            <div className="fit-panel-header">
-                                <span className="fit-panel-title">MEASUREMENTS</span>
-                            </div>
-
-                            {/* List Header */}
-                            <div className="fit-list-header grid-cols-2">
-                                <div>Body Part</div>
-                                <div>Your Size</div>
-                            </div>
-
-                            {/* Measurement Rows */}
-                            {displayMeasurements.length > 0 ? (
-                                displayMeasurements.map(({ canonKey, value }) => {
-                                    const meta = MEASUREMENT_METADATA[canonKey] || { label: canonKey.charAt(0).toUpperCase() + canonKey.slice(1).replace(/_/g, ' ') }
-
-                                    return (
-                                        <div
-                                            key={canonKey}
-                                            className="fit-measurement-row grid-cols-2"
-                                        >
-                                            <div className="fit-m-label">{meta.label}</div>
-                                            <div className="fit-m-value">
-                                                {canonKey === 'height' ? `${value.toFixed(1)} cm` : `${value.toFixed(1)} cm`}
-                                            </div>
-                                        </div>
-                                    )
-                                })
-                            ) : (
-                                <div className="p-4 text-slate-400 text-center italic">
-                                    No measurement data available
-                                </div>
-                            )}
+                    {/* Center: Stick Figure — 60% size, centered */}
+                    <div className="flex-1 min-w-0 flex items-center justify-center">
+                        <div style={{ width: '60%', height: '60%' }}>
+                            <StickFigure colors={stickFigureColors} gender={userGender || undefined} />
                         </div>
+                    </div>
 
-                        {/* Panel Toggle */}
+                    {/* Right: Measurements panel — same 200px height as color indicator */}
+                    <div className="flex-shrink-0 w-16 flex flex-col items-center justify-center pr-3 pl-1">
                         <button
-                            className={`fit-panel-toggle ${isPanelOpen ? '' : 'collapsed'}`}
                             onClick={() => setIsPanelOpen(!isPanelOpen)}
-                            aria-label="Toggle Measurements"
+                            className="relative flex flex-col items-center justify-center gap-2 group"
+                            style={{ height: '200px' }}
                         >
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className={`fit-toggle-icon ${isPanelOpen ? 'open' : ''}`}>
-                                <path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                            <span className="fit-toggle-label">MEASUREMENTS</span>
+                            <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center group-hover:bg-slate-200 transition-colors flex-shrink-0">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-500">
+                                    <path d="M3 3v18h18" /><path d="M7 16l4-8 4 4 4-6" />
+                                </svg>
+                            </div>
+                            <span className="text-[8px] font-semibold text-slate-400 uppercase tracking-wider" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
+                                Measurements
+                            </span>
                         </button>
 
-                        {/* Content Card */}
-                        <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-slate-200/50">
-                            <div className="relative flex flex-col items-center justify-center mb-8">
-                                {/* Image Container */}
-                                <div className="relative w-full max-w-md mx-auto">
-                                    <StickFigure scores={looseScores} gender={userGender || undefined} />
-                                </div>
+                        {/* Measurements popup */}
+                        {isPanelOpen && (
+                            <div className="absolute right-12 top-1/2 -translate-y-1/2 bg-white rounded-xl shadow-2xl border border-slate-200 p-4 min-w-[160px] z-30">
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Your Measurements</p>
+                                {displayMeasurements.length > 0 ? (
+                                    <div className="space-y-2">
+                                        {displayMeasurements.map(({ canonKey, value }) => {
+                                            const meta = MEASUREMENT_METADATA[canonKey] || { label: canonKey }
+                                            return (
+                                                <div key={canonKey} className="flex justify-between gap-4 text-xs">
+                                                    <span className="text-slate-500">{meta.label}</span>
+                                                    <span className="font-mono text-slate-800 font-semibold">{value.toFixed(1)} cm</span>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                ) : (
+                                    <p className="text-xs text-slate-400 text-center italic">No data</p>
+                                )}
                             </div>
-
-                            {/* Size Toggle Buttons */}
-                            <div className="flex flex-col items-center mb-8">
-                                <div className="flex flex-wrap gap-2 justify-center mb-2">
-                                    {availableSizes.map(size => {
-                                        // Use logic: Show unless explicitly missing from response
-                                        // If no recommendations yet (loading), show all
-                                        // If recommendations exist, check if size is in `all_sizes`
-
-                                        const isAvailable = recommendations.length === 0 ||
-                                            recommendations.some(rec =>
-                                                rec.all_sizes?.some(s => s.size === size && !!s.details)
-                                            );
-
-                                        if (!isAvailable) return null;
-
-                                        const isRec = recommendations[0]?.recommended_size === size;
-                                        const isSelected = size === selectedSize;
-
-                                        return (
-                                            <div key={size} className="relative flex flex-col items-center">
-                                                {isRec && (
-                                                    <span className="absolute -top-6 text-[10px] uppercase font-bold tracking-wider text-black bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200 shadow-sm z-10 whitespace-nowrap">
-                                                        Recommended
-                                                    </span>
-                                                )}
-                                                <button
-                                                    className={`relative px-4 py-3 min-w-[3.5rem] rounded-xl text-sm font-bold transition-all duration-200 whitespace-nowrap ${isSelected
-                                                        ? 'bg-black text-white shadow-xl shadow-black/20 scale-105 ring-2 ring-offset-2 ring-black'
-                                                        : 'bg-white text-slate-500 border border-slate-200 hover:border-slate-400 hover:bg-slate-50'
-                                                        } ${isRec && !isSelected ? 'border-emerald-400 border-2 text-emerald-600' : ''}`}
-                                                    onClick={() => setSize(size)}
-                                                >
-                                                    {size}
-                                                </button>
-                                            </div>
-                                        )
-                                    })}
-                                    {availableSizes.length === 0 && !loading && (
-                                        <div className="text-slate-400 text-sm">No size data available</div>
-                                    )}
-                                </div>
-                                <p className="text-xs text-slate-500 mt-2">Try other sizes to see how the fit changes</p>
-                            </div>
-
-                            {/* Color Reference Gradient Bar */}
-                            <div className="bg-slate-50 border border-slate-200 rounded-xl p-6">
-                                <div className="relative h-4 rounded-full overflow-hidden mb-2" style={{
-                                    background: 'linear-gradient(to right, #ef4444 0%, #f97316 33%, #22c55e 66%, #3b82f6 100%)'
-                                }}>
-                                    {/* Gradient only for reference */}
-                                </div>
-                                <div className="flex justify-between text-xs font-semibold text-slate-500 px-1">
-                                    <span style={{ color: '#ef4444' }}>Tight</span>
-                                    <span style={{ color: '#f97316' }}>Slightly Tight</span>
-                                    <span style={{ color: '#22c55e' }}>Perfect</span>
-                                    <span style={{ color: '#3b82f6' }}>Loose</span>
-                                </div>
-                            </div>
-                        </div>
+                        )}
                     </div>
+                </div>
+
+                {/* === Bottom: Garment Cards === */}
+                <div className="flex-shrink-0 px-4 pb-32 pt-2">
+                    {isPaired ? (
+                        /* Paired: two cards side by side */
+                        <div className="flex gap-3 items-stretch">
+                            {garmentCards.map((card) => (
+                                <div key={card.gid} className="flex-1 min-w-0 flex">
+                                    <GarmentFitCard
+                                        product={card.productData}
+                                        recommendation={card.rec}
+                                        selectedSize={selectedSizes[card.gid] || 'M'}
+                                        onSizeSelect={(size) => setSelectedSizes(prev => ({ ...prev, [card.gid]: size }))}
+                                        label={card.label}
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        /* Single: one card centered below */
+                        <div className="max-w-[420px] mx-auto">
+                            {garmentCards.map(card => (
+                                <GarmentFitCard
+                                    key={card.gid}
+                                    product={card.productData}
+                                    recommendation={card.rec}
+                                    selectedSize={selectedSizes[card.gid] || 'M'}
+                                    onSizeSelect={(size) => setSelectedSizes(prev => ({ ...prev, [card.gid]: size }))}
+                                />
+                            ))}
+                        </div>
+                    )}
+
+                    {garmentIds.length === 0 && !loading && (
+                        <p className="text-slate-400 text-sm text-center py-4">No garment data available</p>
+                    )}
                 </div>
             </div>
         </MotionFade>

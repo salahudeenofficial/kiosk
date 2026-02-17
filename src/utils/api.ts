@@ -275,38 +275,57 @@ export const api = {
     const formData = new FormData()
     formData.append('image', file)
 
-    try {
-      const apiResponse = await fetch(url, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          // Note: Do NOT set Content-Type header - browser will set it with boundary
-        },
-        body: formData,
-        signal: AbortSignal.timeout(API_CONFIG.TIMEOUT),
-      })
+    const maxRetries = API_CONFIG.UPLOAD_MAX_RETRIES
 
-      if (!apiResponse.ok) {
-        if (apiResponse.status === 401) {
-          throw new Error('Authentication failed. Please restart the session.')
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        if (attempt > 0) {
+          console.log(`[Upload] Retry attempt ${attempt}/${maxRetries}`)
         }
-        throw new Error(`Upload failed: ${apiResponse.status} ${apiResponse.statusText}`)
-      }
 
-      const data = await apiResponse.json()
+        const apiResponse = await fetch(url, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            // Note: Do NOT set Content-Type header - browser will set it with boundary
+          },
+          body: formData,
+          signal: AbortSignal.timeout(API_CONFIG.UPLOAD_TIMEOUT),
+        })
 
-      if (!data.success) {
-        throw new Error(data.error?.message || 'Image upload failed')
-      }
+        if (!apiResponse.ok) {
+          if (apiResponse.status === 401) {
+            throw new Error('Authentication failed. Please restart the session.')
+          }
+          throw new Error(`Upload failed: ${apiResponse.status} ${apiResponse.statusText}`)
+        }
 
-      return {
-        imageUrl: data.data.imageUrl,
-        imageId: data.data.imageId,
+        const data = await apiResponse.json()
+
+        if (!data.success) {
+          throw new Error(data.error?.message || 'Image upload failed')
+        }
+
+        return {
+          imageUrl: data.data.imageUrl,
+          imageId: data.data.imageId,
+        }
+      } catch (error) {
+        const isRetryable = error instanceof TypeError
+          || (error instanceof DOMException && error.name === 'TimeoutError')
+
+        if (isRetryable && attempt < maxRetries) {
+          const delay = 1000 * (attempt + 1)
+          console.warn(`[Upload] Attempt ${attempt + 1} failed, retrying in ${delay}ms...`, error)
+          await new Promise(r => setTimeout(r, delay))
+          continue
+        }
+        console.error('Image upload error:', error)
+        throw error
       }
-    } catch (error) {
-      console.error('Image upload error:', error)
-      throw error
     }
+
+    throw new Error('Image upload failed after all retries')
   },
 
   /**
