@@ -5,8 +5,8 @@ import LoadingPulse from '../components/UI/LoadingPulse'
 import Button from '../components/UI/Button'
 import ProductCard from '../components/ProductCard'
 import SearchBar from '../components/SearchBar'
-import SortDropdown, { type SortOption } from '../components/SortDropdown'
-import FiltersDrawer, { type Filters } from '../components/FiltersDrawer'
+import SortDropdown from '../components/SortDropdown'
+import FiltersDrawer from '../components/FiltersDrawer'
 import useAutoNavigate from '../hooks/useAutoNavigate'
 import { useKioskStore } from '../store/kioskStore'
 import { type ProductListItem } from '../utils/productApi'
@@ -69,18 +69,20 @@ const ProductList = () => {
   const setSizeRecommendation = useKioskStore((state) => state.setSizeRecommendation)
   const setUserMeasurements = useKioskStore((state) => state.setUserMeasurements)
 
+  // Filter/sort state persisted in Zustand so it survives navigation to ProductDetail and back
+  const search = useKioskStore((state) => state.productListSearch)
+  const setSearch = useKioskStore((state) => state.setProductListSearch)
+  const filters = useKioskStore((state) => state.productListFilters)
+  const setFilters = useKioskStore((state) => state.setProductListFilters)
+  const sortOption = useKioskStore((state) => state.productListSortOption)
+  const setSortOption = useKioskStore((state) => state.setProductListSortOption)
+
   // State management
   const [products, setProducts] = useState<ProductListItem[]>([])
   const [page, setPage] = useState(0)
   const [loading, setLoading] = useState(false)
   const [hasMore, setHasMore] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [search, setSearch] = useState('')
-  const [filters, setFilters] = useState<Filters>({})
-  const [sortOption, setSortOption] = useState<SortOption>({
-    value: 'featured',
-    label: 'Featured',
-  })
   const [filtersDrawerOpen, setFiltersDrawerOpen] = useState(false)
   const [pairingProduct, setPairingProduct] = useState<ProductListItem | null>(null)
 

@@ -2,6 +2,8 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { Product } from '../utils/mockApi'
 import type { SizeRecommendationResponse } from '../utils/kioskApi'
+import type { Filters } from '../components/FiltersDrawer'
+import type { SortOption } from '../components/SortDropdown'
 
 type KioskState = {
   // User session state
@@ -73,6 +75,14 @@ type KioskState = {
   // UI State
   productListScrollPosition: number
   setProductListScrollPosition: (position: number) => void
+
+  // Product list filter/sort state (persisted across navigation)
+  productListSearch: string
+  productListFilters: Filters
+  productListSortOption: SortOption
+  setProductListSearch: (search: string) => void
+  setProductListFilters: (filters: Filters) => void
+  setProductListSortOption: (option: SortOption) => void
 }
 
 const baseState = () => ({
@@ -101,6 +111,10 @@ const baseState = () => ({
   sessionToken: null,
   sessionUserId: null,
   sessionExpiresAt: null,
+  // Product list filter/sort state
+  productListSearch: '',
+  productListFilters: {},
+  productListSortOption: { value: 'featured', label: 'Featured' },
 })
 
 export const useKioskStore = create<KioskState>()(
@@ -211,6 +225,14 @@ export const useKioskStore = create<KioskState>()(
       // UI State
       productListScrollPosition: 0,
       setProductListScrollPosition: (position) => set({ productListScrollPosition: position }),
+
+      // Product list filter/sort state
+      productListSearch: '',
+      productListFilters: {},
+      productListSortOption: { value: 'featured', label: 'Featured' },
+      setProductListSearch: (search) => set({ productListSearch: search }),
+      setProductListFilters: (filters) => set({ productListFilters: filters }),
+      setProductListSortOption: (option) => set({ productListSortOption: option }),
     }),
     {
       name: 'kiosk-storage',
