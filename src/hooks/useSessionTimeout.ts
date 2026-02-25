@@ -45,8 +45,8 @@ const useSessionTimeout = () => {
     unifiedKioskApi.clearSession()
 
     // Navigate to idle screen
-    navigate('/', { replace: true })
-  }, [navigate, resetSession])
+    window.location.replace('/')
+  }, [resetSession])
 
   useEffect(() => {
     // Skip timeout on pages that don't need session

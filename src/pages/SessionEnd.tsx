@@ -1,5 +1,4 @@
 import { useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
 import Button from '../components/UI/Button'
 import Card from '../components/UI/Card'
 import MotionFade from '../components/UI/MotionFade'
@@ -7,7 +6,6 @@ import { useKioskStore } from '../store/kioskStore'
 import { unifiedKioskApi } from '../utils/unifiedKioskApi'
 
 const SessionEnd = () => {
-  const navigate = useNavigate()
   const resetSession = useKioskStore((state) => state.resetSession)
 
   useEffect(() => {
@@ -24,15 +22,15 @@ const SessionEnd = () => {
     // Auto-navigate back to home after 5 seconds
     const timer = window.setTimeout(() => {
       resetSession()
-      navigate('/')
+      window.location.replace('/')
     }, 5000)
 
     return () => window.clearTimeout(timer)
-  }, [navigate, resetSession])
+  }, [resetSession])
 
   const handleRestart = () => {
     resetSession()
-    navigate('/')
+    window.location.replace('/')
   }
 
   return (

@@ -39,10 +39,15 @@ const ProductDetail = () => {
     if (!product) return
 
     const productId = product.productId.toString()
-    const isSelected = selectedProducts.some((p) => p.id === productId)
+    // Check if product is already selected either directly or indirectly as part of a pair
+    const isSelected = selectedProducts.some((p) => p.id === productId || p.pairedProduct?.id === productId)
 
     if (isSelected) {
-      removeSelectedProduct(productId)
+      // Unselect whichever one holds it
+      const parentProduct = selectedProducts.find(p => p.id === productId || p.pairedProduct?.id === productId)
+      if (parentProduct) {
+        removeSelectedProduct(parentProduct.id)
+      }
       return
     }
 
@@ -147,7 +152,16 @@ const ProductDetail = () => {
         sizes: ['M']
       }
     }
-    addSelectedProduct(item1)
+
+    // Check if the pair already exists exactly
+    const exists = selectedProducts.some(p => p.id === item1.id && p.pairedProduct?.id === item1.pairedProduct.id)
+    if (!exists) {
+      // If it isn't strictly identical, remove the existing root object if it only involves the same ID to prevent double dipping pairs
+      const conflict = selectedProducts.find(p => p.id === item1.id)
+      if (conflict) removeSelectedProduct(conflict.id)
+      addSelectedProduct(item1)
+    }
+
     setPairingModalOpen(false)
 
     // Trigger VTON (optimistic + api call)
@@ -427,9 +441,12 @@ const ProductDetail = () => {
           <div className="max-w-4xl mx-auto w-full flex gap-3">
             <Button
               onClick={handleTryOn}
-              className="flex-1 !bg-black hover:!bg-slate-900 !text-white !py-4 !rounded-none !text-lg !font-medium flex items-center justify-center gap-2"
+              className={`flex-1 !py-4 !rounded-none !text-lg !font-medium flex items-center justify-center gap-2 ${selectedProducts.some((p) => p.id === product.productId.toString() || p.pairedProduct?.id === product.productId.toString())
+                  ? '!bg-slate-200 !text-slate-900 hover:!bg-slate-300'
+                  : '!bg-black hover:!bg-slate-900 !text-white'
+                }`}
             >
-              Try On
+              {selectedProducts.some((p) => p.id === product.productId.toString() || p.pairedProduct?.id === product.productId.toString()) ? 'Remove' : 'Try On'}
             </Button>
 
             {product && product.category && isEligibleForPairing(product.category.name) && (

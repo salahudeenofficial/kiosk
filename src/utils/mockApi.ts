@@ -90,8 +90,7 @@ const mockGetVtonResult = async (
   _userImage: string,
 ): Promise<{ url: string }> => {
   await delay(1800 + Math.random() * 600)
-  const overlay =
-    'https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?auto=format&fit=crop&w=900&q=80'
+  const overlay = '/mock-result.jpg'
   return { url: overlay || product.image }
 }
 

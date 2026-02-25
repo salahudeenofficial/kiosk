@@ -13,7 +13,7 @@ type PairingModalProps = {
 }
 
 const PairingCard = ({ product }: { product: ProductListItem }) => (
-    <div className="w-full h-full bg-white rounded-xl overflow-hidden shadow-sm border border-slate-100 flex flex-col">
+    <div className="w-full h-full bg-white rounded-[1px] overflow-hidden shadow-sm border border-slate-100 flex flex-col transition-all duration-300 hover:shadow-md">
         {/* Image Area - Flexible height to fill available space */}
         <div className="flex-1 relative w-full bg-slate-50 min-h-0">
             <div className="absolute inset-0 p-4 flex items-center justify-center">
@@ -125,14 +125,13 @@ const PairingModal = ({ isOpen, onClose, product, availableProducts, onGenerate 
                         className="fixed inset-0 z-[90] flex items-center justify-center p-4"
                     >
                         <div
-                            className="bg-white w-full max-w-sm rounded-[24px] shadow-2xl flex flex-col overflow-hidden"
-                            style={{ maxHeight: '85vh', height: '600px' }}
+                            className="bg-white w-full max-w-lg rounded-[1px] shadow-2xl flex flex-col overflow-hidden"
+                            style={{ maxHeight: '90vh', height: '800px' }}
                         >
-                            {/* Header - Close Button Only - Absolute positioned */}
                             <div className="relative z-[100]">
                                 <button
                                     onClick={onClose}
-                                    className="absolute top-4 right-4 p-2 rounded-full bg-white/80 hover:bg-slate-100 border border-slate-100 backdrop-blur-sm transition-colors shadow-sm"
+                                    className="absolute top-4 right-4 p-2 rounded-[1px] bg-white/80 hover:bg-slate-100 border border-slate-100 backdrop-blur-sm transition-colors shadow-sm"
                                 >
                                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-500">
                                         <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -154,24 +153,39 @@ const PairingModal = ({ isOpen, onClose, product, availableProducts, onGenerate 
                                         <div className="relative w-full h-full">
                                             {candidates.length > 0 ? (
                                                 <>
-                                                    <PairingCard product={currentCandidate} />
+                                                    <motion.div
+                                                        drag="x"
+                                                        dragConstraints={{ left: 0, right: 0 }}
+                                                        onDragEnd={(_, { offset }) => {
+                                                            if (offset.x < -50) handleNext()
+                                                            else if (offset.x > 50) handlePrev()
+                                                        }}
+                                                        className="w-full h-full cursor-grab active:cursor-grabbing"
+                                                        key={currentCandidate.productId}
+                                                        initial={{ opacity: 0.5, x: 50 }}
+                                                        animate={{ opacity: 1, x: 0 }}
+                                                        exit={{ opacity: 0, x: -50 }}
+                                                        transition={{ duration: 0.2 }}
+                                                    >
+                                                        <PairingCard product={currentCandidate} />
+                                                    </motion.div>
 
                                                     {/* Navigation Arrows - Using z-20 to sit above card image */}
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); handlePrev(); }}
-                                                        className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/90 backdrop-blur-sm border border-slate-200 rounded-full shadow-lg flex items-center justify-center text-slate-800 hover:scale-110 active:scale-95 transition-all z-20 cursor-pointer"
+                                                        className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/90 backdrop-blur-sm border border-slate-200 rounded-[1px] shadow-lg flex items-center justify-center text-slate-800 hover:scale-110 active:scale-95 transition-all z-20 cursor-pointer"
                                                     >
                                                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
                                                     </button>
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); handleNext(); }}
-                                                        className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/90 backdrop-blur-sm border border-slate-200 rounded-full shadow-lg flex items-center justify-center text-slate-800 hover:scale-110 active:scale-95 transition-all z-20 cursor-pointer"
+                                                        className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/90 backdrop-blur-sm border border-slate-200 rounded-[1px] shadow-lg flex items-center justify-center text-slate-800 hover:scale-110 active:scale-95 transition-all z-20 cursor-pointer"
                                                     >
                                                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
                                                     </button>
                                                 </>
                                             ) : (
-                                                <div className="w-full h-full flex items-center justify-center bg-slate-50 rounded-xl text-slate-400 border-2 border-dashed border-slate-200">
+                                                <div className="w-full h-full flex items-center justify-center bg-slate-50 rounded-[1px] text-slate-400 border-2 border-dashed border-slate-200">
                                                     No matches found
                                                 </div>
                                             )}
@@ -189,24 +203,39 @@ const PairingModal = ({ isOpen, onClose, product, availableProducts, onGenerate 
                                         <div className="relative w-full h-full">
                                             {candidates.length > 0 ? (
                                                 <>
-                                                    <PairingCard product={currentCandidate} />
+                                                    <motion.div
+                                                        drag="x"
+                                                        dragConstraints={{ left: 0, right: 0 }}
+                                                        onDragEnd={(_, { offset }) => {
+                                                            if (offset.x < -50) handleNext()
+                                                            else if (offset.x > 50) handlePrev()
+                                                        }}
+                                                        className="w-full h-full cursor-grab active:cursor-grabbing"
+                                                        key={currentCandidate.productId}
+                                                        initial={{ opacity: 0.5, x: 50 }}
+                                                        animate={{ opacity: 1, x: 0 }}
+                                                        exit={{ opacity: 0, x: -50 }}
+                                                        transition={{ duration: 0.2 }}
+                                                    >
+                                                        <PairingCard product={currentCandidate} />
+                                                    </motion.div>
 
                                                     {/* Navigation Arrows */}
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); handlePrev(); }}
-                                                        className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/90 backdrop-blur-sm border border-slate-200 rounded-full shadow-lg flex items-center justify-center text-slate-800 hover:scale-110 active:scale-95 transition-all z-20 cursor-pointer"
+                                                        className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/90 backdrop-blur-sm border border-slate-200 rounded-[1px] shadow-lg flex items-center justify-center text-slate-800 hover:scale-110 active:scale-95 transition-all z-20 cursor-pointer"
                                                     >
                                                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
                                                     </button>
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); handleNext(); }}
-                                                        className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/90 backdrop-blur-sm border border-slate-200 rounded-full shadow-lg flex items-center justify-center text-slate-800 hover:scale-110 active:scale-95 transition-all z-20 cursor-pointer"
+                                                        className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/90 backdrop-blur-sm border border-slate-200 rounded-[1px] shadow-lg flex items-center justify-center text-slate-800 hover:scale-110 active:scale-95 transition-all z-20 cursor-pointer"
                                                     >
                                                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
                                                     </button>
                                                 </>
                                             ) : (
-                                                <div className="w-full h-full flex items-center justify-center bg-slate-50 rounded-xl text-slate-400 border-2 border-dashed border-slate-200">
+                                                <div className="w-full h-full flex items-center justify-center bg-slate-50 rounded-[1px] text-slate-400 border-2 border-dashed border-slate-200">
                                                     No matches found
                                                 </div>
                                             )}
@@ -216,12 +245,11 @@ const PairingModal = ({ isOpen, onClose, product, availableProducts, onGenerate 
 
                             </div>
 
-                            {/* Footer */}
                             <div className="p-4 pt-0">
                                 <button
                                     onClick={handleGenerate}
                                     disabled={candidates.length === 0}
-                                    className="w-full bg-black text-white font-medium py-3.5 rounded-xl text-lg hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg"
+                                    className="w-full bg-black text-white font-medium py-3.5 rounded-[1px] text-lg hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg"
                                 >
                                     Generate Fit
                                 </button>

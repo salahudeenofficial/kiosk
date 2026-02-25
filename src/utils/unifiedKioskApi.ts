@@ -199,7 +199,6 @@ export const unifiedKioskApi = {
     },
 
     // VTON
-    // VTON
     async requestVton(garmentIds: number[], stitch: boolean = false) {
         console.log(`[UnifiedAPI] requestVton - mode: ${shouldUseMock() ? 'MOCK' : 'REAL'}`)
 
@@ -207,14 +206,37 @@ export const unifiedKioskApi = {
             const result = await mockKioskApi.requestVton(garmentIds, stitch)
 
             // Simulate results after delay for mock stream
-            setTimeout(() => {
-                const imageUrl = 'https://via.placeholder.com/768x1024?text=Mock+Try-On+Result'
+            setTimeout(async () => {
+                const resultImages = [
+                    '/mock-result.jpg', // Uses a local image placed in public/ to bypass CORS restriction!
+                ]
+
+                const dispatchResult = async (event: VtonResultEvent) => {
+                    if (mockStreamListeners.size > 0) {
+                        // Dispatch via stream listeners (normal path when App.tsx SSE is connected)
+                        mockStreamListeners.forEach(listener => listener(event))
+                    } else {
+                        // Fallback: directly update the zustand store
+                        // This handles the case where no SSE stream is running (e.g., no session in dev mode)
+                        console.log('[UnifiedAPI] No stream listeners, updating store directly for garment:', event.garment_id)
+                        const { useKioskStore } = await import('../store/kioskStore')
+                        useKioskStore.getState().updateVtonJob(
+                            event.garment_id.toString(),
+                            event.status,
+                            event.output_image_url || null,
+                            event.error || undefined,
+                            event.job_id
+                        )
+                    }
+                }
 
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                result.jobs.forEach((j: any) => {
+                for (const j of result.jobs as any[]) {
+                    const imageUrl = resultImages[Math.floor(Math.random() * resultImages.length)]
+
                     if (stitch && j.garment_ids) {
                         // For stitch, emit success for all garment IDs sharing the same image
-                        (j.garment_ids as number[]).forEach((gid: number) => {
+                        for (const gid of j.garment_ids as number[]) {
                             const event: VtonResultEvent = {
                                 job_id: j.job_id,
                                 garment_id: gid,
@@ -222,8 +244,8 @@ export const unifiedKioskApi = {
                                 output_image_url: imageUrl,
                                 timestamp: new Date().toISOString()
                             }
-                            mockStreamListeners.forEach(listener => listener(event))
-                        })
+                            await dispatchResult(event)
+                        }
                     } else if (j.garment_id) {
                         const event: VtonResultEvent = {
                             job_id: j.job_id,
@@ -232,9 +254,9 @@ export const unifiedKioskApi = {
                             output_image_url: imageUrl,
                             timestamp: new Date().toISOString()
                         }
-                        mockStreamListeners.forEach(listener => listener(event))
+                        await dispatchResult(event)
                     }
-                })
+                }
             }, 5000)
 
             return result

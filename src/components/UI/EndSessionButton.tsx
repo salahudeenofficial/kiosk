@@ -1,4 +1,3 @@
-import { useNavigate } from 'react-router-dom'
 import { useKioskStore } from '../../store/kioskStore'
 import { unifiedKioskApi } from '../../utils/unifiedKioskApi'
 
@@ -7,7 +6,6 @@ interface EndSessionButtonProps {
 }
 
 const EndSessionButton = ({ className = '' }: EndSessionButtonProps) => {
-    const navigate = useNavigate()
     const resetSession = useKioskStore((state) => state.resetSession)
 
     const handleEndSession = async () => {
@@ -17,7 +15,7 @@ const EndSessionButton = ({ className = '' }: EndSessionButtonProps) => {
             console.error('Failed to complete session:', err)
         }
         resetSession()
-        navigate('/')
+        window.location.replace('/')
     }
 
     return (

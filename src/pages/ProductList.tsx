@@ -85,6 +85,7 @@ const ProductList = () => {
   const [error, setError] = useState<string | null>(null)
   const [filtersDrawerOpen, setFiltersDrawerOpen] = useState(false)
   const [pairingProduct, setPairingProduct] = useState<ProductListItem | null>(null)
+  const [pairingCandidates, setPairingCandidates] = useState<ProductListItem[]>([])
 
   // Filter options from backend
   const [availableCategories, setAvailableCategories] = useState<CatalogFilterCategory[]>([])
@@ -105,15 +106,16 @@ const ProductList = () => {
   // Restore scroll position on mount
   useEffect(() => {
     if (scrollContainerRef.current && productListScrollPosition > 0) {
-      // Small timeout to ensure content renders
-      setTimeout(() => {
-        if (scrollContainerRef.current) {
-          scrollContainerRef.current.scrollTop = productListScrollPosition
-        }
-      }, 100)
+      // Use requestAnimationFrame alongside timeout to ensure DOM layout is truly complete
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          if (scrollContainerRef.current) {
+            scrollContainerRef.current.scrollTop = productListScrollPosition
+          }
+        }, 100)
+      })
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // Run once on mount
+  }, [products.length, productListScrollPosition]) // Add products length to dependency to refire when populated
 
 
 
@@ -392,18 +394,15 @@ const ProductList = () => {
       sizes: ['S', 'M', 'L', 'XL'],
     }
 
-    // Check if product is already selected
-    const isSelected = selectedProducts.some((p) => p.id === storeProduct.id)
+    // Check if product is already selected either directly or as part of a pair
+    const isSelected = selectedProducts.some((p) => p.id === storeProduct.id || p.pairedProduct?.id === storeProduct.id)
 
     if (isSelected) {
-      // Remove if already selected
-      removeSelectedProduct(storeProduct.id)
-      // Removed local loading state update
-      // setLoadingStates((prev) => {
-      //   const next = { ...prev }
-      //   delete next[storeProduct.id]
-      //   return next
-      // })
+      // Find the root product holding this item if it's deeply paired.
+      const parentProduct = selectedProducts.find(p => p.id === storeProduct.id || p.pairedProduct?.id === storeProduct.id)
+      if (parentProduct) {
+        removeSelectedProduct(parentProduct.id)
+      }
     } else {
       // Add if not selected
       if (addProductToSelection(product)) {
@@ -412,9 +411,30 @@ const ProductList = () => {
     }
   }
 
-  const handlePair = (e: React.MouseEvent, product: ProductListItem) => {
+  const handlePair = async (e: React.MouseEvent, product: ProductListItem) => {
     e.stopPropagation()
     if (isEligibleForPairing(product.category.name)) {
+      // Load unbiased candidates for pairing, ignoring current page filters.
+      if (pairingCandidates.length === 0) {
+        try {
+          const response = await unifiedKioskApi.loadCatalog({ limit: 50 })
+          const items = response.products.map(p => ({
+            productId: p.productId,
+            name: p.name,
+            mrp: p.mrp,
+            baseColour: 'Black',
+            ratings: 4.5,
+            imageCount: 1,
+            imageUrl: p.imageUrl,
+            brand: p.brand,
+            category: p.category
+          } as ProductListItem))
+          setPairingCandidates(items)
+        } catch (e) {
+          console.error("Failed to load pairing candidates", e)
+          setPairingCandidates(products) // Fallback to current products on failure
+        }
+      }
       setPairingProduct(product)
     }
   }
@@ -435,11 +455,17 @@ const ProductList = () => {
 
   const handleTryOnButton = (initialIndex: number = 0) => {
     if (selectedProducts.length === 0) return
+    if (scrollContainerRef.current) {
+      setProductListScrollPosition(scrollContainerRef.current.scrollTop)
+    }
     navigate('/tryon-results', { state: { initialIndex } })
   }
 
   const handleDetails = (e: React.MouseEvent, product: ProductListItem) => {
     e.stopPropagation()
+    if (scrollContainerRef.current) {
+      setProductListScrollPosition(scrollContainerRef.current.scrollTop)
+    }
     navigate(`/product/${product.productId}`)
   }
 
@@ -634,7 +660,7 @@ const ProductList = () => {
                         onPair={isEligibleForPairing(product.category.name) ? (e) => handlePair(e, product) : undefined}
                         onDetails={(e) => handleDetails(e, product)}
                         isSelected={selectedProducts.some(
-                          (p) => p.id === product.productId.toString(),
+                          (p) => p.id === product.productId.toString() || p.pairedProduct?.id === product.productId.toString()
                         )}
                       />
                     </motion.div>
@@ -766,7 +792,7 @@ const ProductList = () => {
         isOpen={!!pairingProduct}
         onClose={() => setPairingProduct(null)}
         product={pairingProduct}
-        availableProducts={products}
+        availableProducts={pairingCandidates.length > 0 ? pairingCandidates : products}
         onGenerate={handleGeneratePair}
       />
 

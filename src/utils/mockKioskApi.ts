@@ -604,12 +604,9 @@ export const mockKioskApi = {
         // Simulate processing time
         await delay(MOCK_CONFIG.VTON_DELAY_MS + Math.random() * 2000)
 
-        // Return a "try-on" result image (using a fashion model image from Unsplash)
+        // Return a "try-on" result image
         const resultImages = [
-            'https://images.unsplash.com/photo-1509631179647-0177331693ae?w=600&q=80',
-            'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=600&q=80',
-            'https://images.unsplash.com/photo-1539109136881-3be0616acf4b?w=600&q=80',
-            'https://images.unsplash.com/photo-1496747611176-843222e1e57c?w=600&q=80',
+            '/mock-result.jpg',
         ]
 
         console.log('[MockAPI] VTON result ready for:', garmentId)
@@ -743,6 +740,13 @@ export const mockKioskApi = {
                 "thigh left circumference": 54.2,
                 "neck circumference": 38.5,
                 "height": 175.0
+            },
+            zone_colors: {
+                'XS': { 'shoulder': '#EF4444', 'chest': '#EF4444', 'waist': '#EF4444', 'hip': '#EF4444' },
+                'S': { 'shoulder': '#EF4444', 'chest': '#EF4444', 'waist': '#EAB308', 'hip': '#22C55E' },
+                'M': { 'shoulder': '#22C55E', 'chest': '#22C55E', 'waist': '#22C55E', 'hip': '#22C55E' },
+                'L': { 'shoulder': '#EAB308', 'chest': '#EAB308', 'waist': '#EAB308', 'hip': '#EAB308' },
+                'XL': { 'shoulder': '#3B82F6', 'chest': '#3B82F6', 'waist': '#3B82F6', 'hip': '#3B82F6' },
             }
         }
     },
